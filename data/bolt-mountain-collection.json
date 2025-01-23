@@ -1,0 +1,14 @@
+{
+    "cards": [
+        {
+            "name": "Mountain",
+            "card_type": "Land",
+            "produces": "R"
+        },
+        {
+            "name": "Lightning Bolt",
+            "cost": "R",
+            "card_type": "Instant"
+        }
+    ]
+}
