@@ -1,9 +1,9 @@
 use rand::Rng;
 
-use crate::card::Card;
-use crate::card::CardType;
-use crate::game::State;
-use crate::game::UnorderedPile;
+use crate::game::card::Card;
+use crate::game::card::CardType;
+use crate::game::state::State;
+use crate::game::unordered_pile::UnorderedPile;
 use crate::trial::Rand;
 
 #[allow(unused)]

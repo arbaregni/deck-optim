@@ -1,15 +1,13 @@
 use std::collections::HashMap;
 
-use card::{Card, CardCollection, CardData};
 use once_cell::sync::OnceCell;
 
-pub mod card;
-pub mod mana;
 pub mod trial;
 pub mod game;
 pub mod watcher;
-pub mod measure;
 pub mod strategies;
+
+use game::card::{Card, CardCollection, CardData};
 
 static CARD_COLLECTION: OnceCell<CardCollection> = OnceCell::new();
 static NAME_TO_CARD: OnceCell<HashMap<String, Card>> = OnceCell::new();

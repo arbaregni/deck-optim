@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use itertools::Itertools;
 
-use crate::game::State;
+use crate::game::state::State;
 
 pub trait Watcher {
     #[allow(unused)]

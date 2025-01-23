@@ -17,7 +17,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::prelude::*;
 
-use deck_optim::card::CardCollection;
+use deck_optim::game::card::CardCollection;
 
 type Result<T, E=Box<dyn std::error::Error>> = std::result::Result<T, E>;
 

@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use crate::card::Card;
+use crate::game::card::Card;
 
 use super::UnorderedPile;
 
@@ -44,7 +44,7 @@ impl OrderedPile {
 
 #[cfg(test)]
 mod tests {
-    use crate::card;
+    use crate::game::card;
     use super::*;
 
     #[test]

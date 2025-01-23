@@ -1,7 +1,7 @@
 use rand::Rng;
 
-use crate::card::{Card, CardType};
-use crate::card_data;
+use crate::game::card::Card;
+use crate::game::card::CardType;
 use crate::trial::Rand;
 use crate::game::{
     Hand, Library, UnorderedPile
@@ -77,7 +77,7 @@ impl State {
             return;
         };
 
-        match card_data(card).card_type {
+        match card.data().card_type {
             CardType::Land => {
                 self.lands.add(card, 1);
             }
@@ -93,7 +93,7 @@ impl State {
     pub fn num_lands_in_hand(&self) -> usize {
         self.hand
             .iter()
-            .filter(|c| card_data(*c).card_type == CardType::Land)
+            .filter(|c| c.data().card_type == CardType::Land)
             .count()
     }
 }

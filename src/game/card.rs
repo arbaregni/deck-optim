@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use crate::{card_data, mana::ManaPool};
+use crate::card_data;
+use crate::game::mana::ManaPool;
 
 #[derive(Clone,Debug,Deserialize)]
 pub struct CardCollection {
