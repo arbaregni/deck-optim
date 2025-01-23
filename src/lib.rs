@@ -27,6 +27,10 @@ pub fn card_data(card: Card) -> &'static CardData {
         .expect("unitialized")
         .data(card)
 }
+pub fn get_card_data(card: Card) -> Option<&'static CardData> {
+    let col = CARD_COLLECTION.get()?;
+    col.get(card)
+}
 
 pub fn card_named(name: &str) -> Card {
     NAME_TO_CARD.get()

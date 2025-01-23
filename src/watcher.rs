@@ -15,6 +15,7 @@ pub trait Watcher {
     fn card_play(&self, card_play: Card, state: &State, metrics: &mut MetricsData) { }
 }
 
+#[derive(Clone)]
 pub struct WatcherImpl;
 impl Watcher for WatcherImpl {
     fn opening_hand<'a>(&self, state: &State, metrics: &mut MetricsData) { 
@@ -28,7 +29,7 @@ impl Watcher for WatcherImpl {
     fn card_play(&self, _card_play: Card, state: &State, metrics: &mut MetricsData) {
         metrics.add("card-plays");
 
-        if metrics.get("card-plays") > 7 && metrics.get("turn-to-reach-7-plays") == 0 {
+        if metrics.get("card-plays") >= 7 && metrics.get("turn-to-reach-7-plays") == 0 {
             metrics.add_count("turn-to-reach-7-plays", state.turn);
         }
 

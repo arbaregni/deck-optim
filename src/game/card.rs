@@ -19,11 +19,15 @@ impl CardCollection {
         for card in self.iter() {
             let name = self.data(card).name.to_string();
             map.insert(name, card);
+
         }
         map
     }
     pub fn data(&self, card: Card) -> &CardData {
         &self.cards[card.idx]
+    }
+    pub fn get(&self, card: Card) -> Option<&CardData> {
+        self.cards.get(card.idx)
     }
     pub fn iter(&self) -> impl Iterator<Item = Card> + '_ {
         (0..self.num_cards())
@@ -31,13 +35,21 @@ impl CardCollection {
     }
 }
 
-#[derive(Debug,Clone,Copy,Eq,PartialEq,Hash)]
+#[derive(Clone,Copy,Eq,PartialEq,Hash)]
 pub struct Card {
     idx: usize
 }
 impl Card {
     pub fn data(self) -> &'static CardData {
         card_data(self)
+    }
+}
+impl std::fmt::Debug for Card {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match crate::get_card_data(*self) {
+            Some(data) => write!(f, "Card{{ idx{} - \"{}\"}}", self.idx, data.name),
+            None => write!(f, "Card{{ idx{} - (no data)}}", self.idx)
+        }
     }
 }
 

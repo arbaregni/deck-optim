@@ -1,3 +1,5 @@
+use rand::SeedableRng;
+
 use crate::game::Library;
 use crate::game::Hand;
 use crate::game::state::State;
@@ -63,7 +65,6 @@ impl Trial {
             // TODO: mulligan with london mulligan
         };
         
-        log::info!("keeping hand");
         watcher.opening_hand(&self.state, &mut self.metrics);
 
         while self.turn() <= MAX_TURN && !self.state.game_loss {
@@ -73,11 +74,13 @@ impl Trial {
             }
 
             if let Some(land_drop) = strategies.land_drop(&self.state) {
+                log::debug!("playing land: {land_drop:?}");
                 watcher.land_drop(land_drop, &self.state, &mut self.metrics);
                 self.state.play_card(land_drop);
             }
 
-            if let Some(card_play) = strategies.card_play(&self.state) {
+            for card_play in strategies.card_plays(&self.state) {
+                log::debug!("playing card: {card_play:?}");
                 watcher.card_play(card_play, &self.state, &mut self.metrics);
                 self.state.play_card(card_play);
             }
@@ -92,4 +95,25 @@ impl Trial {
         self.metrics
     }
 
+}
+
+pub fn run_trials<S, W>(num_trials: u32, deck: UnorderedPile, strategies: S, watcher: W) -> MetricsData
+where S: Strategy + Clone + Sync,
+      W: Watcher + Clone + Sync 
+{
+    use rayon::iter::IntoParallelIterator;
+    use rayon::iter::ParallelIterator;
+
+    (0..num_trials)
+        .into_iter()
+        .into_par_iter()
+        .map(|_| {
+            let rng = rand::rngs::StdRng::from_entropy();
+            let t = Trial::new(
+                deck.clone(),
+                rng,
+            );
+            t.run(&mut strategies.clone(), &watcher)
+        })
+        .reduce(|| MetricsData::empty(), MetricsData::join)
 }

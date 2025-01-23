@@ -93,6 +93,64 @@ impl ManaPool {
 
         Ok(mana)
     }
+
+    pub fn mana_value(&self) -> u8 {
+        let ManaPool { white, blue, black, red, green, generic } = self;
+        [white, blue, black, red, green, generic].into_iter().sum()
+    }
+
+    pub fn less_than(&self, other: &ManaPool) -> bool {
+        let ManaPool { white, blue, black, red, green, generic } = *self;
+        white <= other.white
+            && blue <= other.blue
+            && black <= other.black
+            && red <= other.red
+            && green <= other.green
+            && generic <= other.generic
+    }
+    pub fn try_subtract(&self, other: &ManaPool) -> Option<ManaPool> {
+        let white = self.white.checked_sub(other.white)?;
+        let blue = self.blue.checked_sub(other.blue)?;
+        let black = self.black.checked_sub(other.black)?;
+        let red = self.red.checked_sub(other.red)?;
+        let green = self.green.checked_sub(other.green)?;
+        let generic = self.generic.checked_sub(other.generic)?;
+
+        Some(ManaPool {
+            white,
+            blue,
+            black,
+            red,
+            green,
+            generic,
+        })
+
+    }
+}
+
+impl std::ops::Add for ManaPool {
+    type Output = ManaPool;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            white:   self.white     + rhs.white,
+            blue:    self.blue      + rhs.blue,
+            black:   self.black     + rhs.black,
+            red:     self.red       + rhs.red,
+            green:   self.green     + rhs.green,
+            generic: self.generic   + rhs.generic,
+        }
+    }
+}
+
+impl std::iter::Sum for ManaPool {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        let mut total = ManaPool::empty();
+        for mp in iter {
+            total = total + mp;
+        }
+        total
+    }
 }
 
 struct ManaPoolVisitor;
@@ -190,5 +248,51 @@ mod tests {
         };
 
         assert_eq!(expected_mana, actual_mana);
+    }
+
+    
+    #[test]
+    fn test_try_subtract_success() {
+        let pool1 = ManaPool { white: 5, blue: 3, black: 2, red: 4, green: 1, generic: 6 };
+        let pool2 = ManaPool { white: 2, blue: 1, black: 1, red: 2, green: 0, generic: 4 };
+        
+        let result = pool1.try_subtract(&pool2);
+        assert_eq!(
+            result,
+            Some(ManaPool { white: 3, blue: 2, black: 1, red: 2, green: 1, generic: 2 })
+        );
+    }
+
+    #[test]
+    fn test_try_subtract_failure() {
+        let pool1 = ManaPool { white: 1, blue: 1, black: 1, red: 1, green: 1, generic: 1 };
+        let pool2 = ManaPool { white: 2, blue: 1, black: 1, red: 1, green: 1, generic: 1 };
+        
+        let result = pool1.try_subtract(&pool2);
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_try_subtract_exact_match() {
+        let pool1 = ManaPool { white: 2, blue: 2, black: 2, red: 2, green: 2, generic: 2 };
+        let pool2 = ManaPool { white: 2, blue: 2, black: 2, red: 2, green: 2, generic: 2 };
+        
+        let result = pool1.try_subtract(&pool2);
+        assert_eq!(
+            result,
+            Some(ManaPool { white: 0, blue: 0, black: 0, red: 0, green: 0, generic: 0 })
+        );
+    }
+
+    #[test]
+    fn test_try_subtract_zero_case() {
+        let pool1 = ManaPool { white: 0, blue: 0, black: 0, red: 0, green: 0, generic: 0 };
+        let pool2 = ManaPool { white: 0, blue: 0, black: 0, red: 0, green: 0, generic: 0 };
+
+        let result = pool1.try_subtract(&pool2);
+        assert_eq!(
+            result,
+            Some(ManaPool { white: 0, blue: 0, black: 0, red: 0, green: 0, generic: 0 })
+        );
     }
 }

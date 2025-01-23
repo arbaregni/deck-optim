@@ -33,6 +33,9 @@ impl UnorderedPile {
     pub fn size(&self) -> usize {
         self.cards.len()
     }
+    pub fn clear(&mut self) {
+        self.cards.clear()
+    }
     pub fn to_ordered(mut self, rng: &mut Rand) -> OrderedPile {
         self.cards.shuffle(rng);
         OrderedPile::from(self.cards)
