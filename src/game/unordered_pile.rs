@@ -69,3 +69,32 @@ impl From<Vec<Card>> for UnorderedPile {
         Self { cards } 
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::game::card;
+
+    use super::*;
+
+    #[test]
+    fn test_empty() {
+        let pile = UnorderedPile::empty();
+        assert_eq!(pile.size(), 0);
+    }
+
+    #[test]
+    fn test_add() {
+        let mut pile = UnorderedPile::empty();
+
+        pile.add(card::get_sample_cards(10)[0]);
+        assert_eq!(pile.size(), 1);
+    }
+
+    #[test]
+    fn test_add_copies() {
+        let mut pile = UnorderedPile::empty();
+
+        pile.add_copies(card::get_sample_cards(10)[0], 12);
+        assert_eq!(pile.size(), 12);
+    }
+}
