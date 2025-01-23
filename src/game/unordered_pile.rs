@@ -21,9 +21,13 @@ impl UnorderedPile {
         self.cards.iter()
             .copied()
     }
-    pub fn add(&mut self, card: Card, copies: u32) {
+
+    pub fn add(&mut self, card: Card) {
+        self.cards.push(card);
+    }
+    pub fn add_copies(&mut self, card: Card, copies: usize) {
         for _ in 0..copies {
-            self.cards.push(card);
+            self.add(card);
         }
     }
     pub fn size(&self) -> usize {
@@ -35,7 +39,7 @@ impl UnorderedPile {
     }
     /// Removes a specified card from the UnorderedPile, if it exists
     /// ```
-    /// use deck_optim::card;
+    /// use deck_optim::game::card;
     /// use deck_optim::game::UnorderedPile;
     ///
     /// let cards = card::get_sample_cards(10);

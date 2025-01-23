@@ -35,7 +35,7 @@ impl ManaPool {
     ///
     /// # Examples
     /// ```
-    /// use deck_optim::mana::ManaPool;
+    /// use deck_optim::game::mana::ManaPool;
     ///
     /// let source = "2G";
     ///

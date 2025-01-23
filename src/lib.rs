@@ -6,6 +6,7 @@ pub mod trial;
 pub mod game;
 pub mod watcher;
 pub mod strategies;
+pub mod metrics;
 
 use game::card::{Card, CardCollection, CardData};
 

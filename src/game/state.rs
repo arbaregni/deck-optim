@@ -63,7 +63,7 @@ impl State {
     pub fn draw_to_hand(&mut self) {
         match self.library.draw() {
             Some(card) => {
-                self.hand.add(card, 1);
+                self.hand.add(card);
             }
             None => {
                 self.game_loss = true;
@@ -79,10 +79,10 @@ impl State {
 
         match card.data().card_type {
             CardType::Land => {
-                self.lands.add(card, 1);
+                self.lands.add(card);
             }
             CardType::Instant => {
-                self.lands.add(card, 1);
+                self.graveyard.add(card);
             }
         }
     }
@@ -95,5 +95,9 @@ impl State {
             .iter()
             .filter(|c| c.data().card_type == CardType::Land)
             .count()
+    }
+
+    pub fn num_lands_in_play(&self) -> usize {
+        self.lands.size()
     }
 }

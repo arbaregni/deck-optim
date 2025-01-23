@@ -3,7 +3,8 @@ use crate::game::Hand;
 use crate::game::state::State;
 use crate::game::unordered_pile::UnorderedPile;
 use crate::strategies::Strategy;
-use crate::watcher::{Watcher, MetricsData};
+use crate::watcher::Watcher;
+use crate::metrics::MetricsData;
 
 pub type Rand = rand::rngs::StdRng;
 
@@ -13,7 +14,7 @@ const MAX_TURN: u32 = 50;
 pub struct Trial {
     pub rng: Rand,
     pub state: State,
-    pub metrics_data: MetricsData,
+    pub metrics: MetricsData,
 }
 
 impl Trial {
@@ -25,7 +26,7 @@ impl Trial {
         Trial {
             rng,
             state,
-            metrics_data: MetricsData::empty()
+            metrics: MetricsData::empty()
         }
     }
     pub fn library(&self) -> &Library {
@@ -63,7 +64,7 @@ impl Trial {
         };
         
         log::info!("keeping hand");
-        watcher.observe_opening_hand(&self.state, &mut self.metrics_data);
+        watcher.opening_hand(&self.state, &mut self.metrics);
 
         while self.turn() <= MAX_TURN && !self.state.game_loss {
             let draw = self.turn() > 0 || self.state.draw_on_first_turn;
@@ -72,15 +73,23 @@ impl Trial {
             }
 
             if let Some(land_drop) = strategies.land_drop(&self.state) {
-                // TODO: add metrics on cards played
+                watcher.land_drop(land_drop, &self.state, &mut self.metrics);
                 self.state.play_card(land_drop);
             }
 
+            if let Some(card_play) = strategies.card_play(&self.state) {
+                watcher.card_play(card_play, &self.state, &mut self.metrics);
+                self.state.play_card(card_play);
+            }
+
+            watcher.turn_end(&self.state, &mut self.metrics);
             self.state.turn += 1;
         }
 
-        self.metrics_data.trials_seen += 1;
-        self.metrics_data
+        watcher.game_end(&self.state, &mut self.metrics);
+
+        self.metrics.trials_seen += 1;
+        self.metrics
     }
 
 }

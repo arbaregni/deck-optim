@@ -7,17 +7,20 @@ use clap::Parser;
 use deck_optim::card_named;
 use deck_optim::strategies::StrategyImpl;
 use deck_optim::trial::Trial;
-use deck_optim::watcher::{MetricsData, WatcherImpl};
 use itertools::Itertools;
 use rand::SeedableRng;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
+
 use tracing_subscriber::Layer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::prelude::*;
 
 use deck_optim::game::card::CardCollection;
+use deck_optim::metrics::MetricsData;
+use deck_optim::watcher::WatcherImpl;
+
 
 type Result<T, E=Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
@@ -84,8 +87,8 @@ fn run(cli: Cli) -> Result<()> {
     let num_trials = cli.num_trials.unwrap_or(DEFAULT_NUM_TRIALS);
 
     let mut deck = deck_optim::game::UnorderedPile::empty();
-    deck.add(card_named("Lightning Bolt"), 23);
-    deck.add(card_named("Mountain"), 17);
+    deck.add_copies(card_named("Lightning Bolt"), 33);
+    deck.add_copies(card_named("Mountain"),  7);
 
     let watcher = WatcherImpl;
     let strategies = StrategyImpl {
