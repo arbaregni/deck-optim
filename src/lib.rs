@@ -9,7 +9,11 @@ pub mod strategies;
 pub mod metrics;
 pub mod deck;
 
+pub mod scryfall;
+
 use game::card::{Card, CardCollection, CardData};
+
+pub const PROJECT_NAME: &'static str = "deck-optim-0.1.0";
 
 static CARD_COLLECTION: OnceCell<CardCollection> = OnceCell::new();
 static NAME_TO_CARD: OnceCell<HashMap<String, Card>> = OnceCell::new();
