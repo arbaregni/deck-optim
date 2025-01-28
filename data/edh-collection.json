@@ -1,0 +1,19 @@
+{
+    "cards": [
+        {
+            "name": "<Basic Land>",
+            "card_type": "Land",
+            "produces": "1"
+        },
+        {
+            "name": "<Ramp on 4>",
+            "cost": "4",
+            "card_type": "Instant"
+        },
+        {
+            "name": "<Other>",
+            "cost": "99",
+            "card_type": "Instant"
+        }
+    ]
+}

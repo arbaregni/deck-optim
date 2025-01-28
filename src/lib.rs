@@ -7,6 +7,7 @@ pub mod game;
 pub mod watcher;
 pub mod strategies;
 pub mod metrics;
+pub mod deck;
 
 use game::card::{Card, CardCollection, CardData};
 
@@ -32,6 +33,13 @@ pub fn get_card_data(card: Card) -> Option<&'static CardData> {
     col.get(card)
 }
 
+pub fn get_card_named(name: &str) -> Result<Card, CardNotFoundError> {
+    let col = NAME_TO_CARD.get()
+        .ok_or_else(|| CardNotFoundError::NameLookupUnintialized { card_name: name.to_string() })?;
+    col.get(name)
+        .copied()
+        .ok_or_else(|| CardNotFoundError::CardNameNotPresent { card_name: name.to_string() })
+}
 pub fn card_named(name: &str) -> Card {
     NAME_TO_CARD.get()
         .expect("unitialized")
@@ -39,3 +47,22 @@ pub fn card_named(name: &str) -> Card {
         .copied()
         .expect("missing card")
 }
+
+#[derive(Debug)]
+pub enum CardNotFoundError {
+    NameLookupUnintialized {
+        card_name: String,
+    },
+    CardNameNotPresent {
+        card_name: String,
+    }
+}
+impl std::fmt::Display for CardNotFoundError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CardNotFoundError::NameLookupUnintialized { card_name } => write!(f, "unable to lookup card with name '{card_name}', card collection not initialized"),
+            CardNotFoundError::CardNameNotPresent { card_name } => write!(f, "could not find a card with name '{card_name}'")
+        }
+    }
+}
+impl std::error::Error for CardNotFoundError { }

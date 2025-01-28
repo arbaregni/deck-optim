@@ -1,0 +1,13 @@
+{
+    "decklist": [
+        {
+            "name": "<Basic Land>", "quantity": 43
+        },
+        {
+            "name": "<Ramp on 4>",  "quantity": 11
+        },
+        {
+            "name": "<Other>",      "quantity": 45
+        }
+    ]
+}

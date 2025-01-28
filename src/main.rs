@@ -1,42 +1,32 @@
-use std::collections::HashMap;
 use std::fs::File;
-use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::io::Read;
+use std::path::PathBuf; 
 
 use clap::Parser;
 
-use deck_optim::card_named;
+use deck_optim::game::Deck;
+use deck_optim::{card_named, deck::DeckList};
 use deck_optim::strategies::StrategyImpl;
 use deck_optim::trial::run_trials;
 use itertools::Itertools;
 use prettytable::{row, Table};
 use rand::SeedableRng;
 
+use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::Layer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::filter::LevelFilter;
-use tracing_subscriber::prelude::*;
 
 use deck_optim::game::card::CardCollection;
 use deck_optim::metrics::MetricsData;
 use deck_optim::watcher::WatcherImpl;
 
+mod cli;
+use cli::Cli;
+
+mod file_utils;
 
 type Result<T, E=Box<dyn std::error::Error>> = std::result::Result<T, E>;
-
-#[derive(Parser, Debug)]
-#[command(version, about)]
-pub struct Cli {
-    #[arg(short='c', long)]
-    /// Supply an optional parameter to read the input from a file
-    pub card_collection: PathBuf,
-    #[arg(short='t', long)]
-    pub num_trials: Option<u32>,
-
-    #[arg(long)]
-    /// Supply this parameter to change the default level filters
-    pub level_filter: Option<LevelFilter>
-}
 
 pub fn configure_logging(cli: &Cli) {
     let level_filter = cli.level_filter.unwrap_or(LevelFilter::INFO);
@@ -53,16 +43,6 @@ pub fn configure_logging(cli: &Cli) {
         .init();
    
 }
-
-fn parse_card_collection(path: &Path) -> Result<CardCollection> {
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
-
-    let card_data = serde_json::from_reader(reader)?;
-
-    Ok(card_data)
-}
-
 const DEFAULT_NUM_TRIALS: u32 = 10000; 
 
 fn make_table() -> Table {
@@ -72,8 +52,6 @@ fn make_table() -> Table {
 }
 
 fn report_metrics_data(_cli: &Cli, metrics: &MetricsData) -> Result<()> {
-    use prettytable::{row, Table};
-
     let mut table = make_table();
 
     table.set_titles(row!["Metrics Name", "Average"]);
@@ -92,18 +70,12 @@ fn report_metrics_data(_cli: &Cli, metrics: &MetricsData) -> Result<()> {
 
 const TOTAL_DECK_SIZE: usize = 40;
 
-fn evaluate_hyper_param(cli: &Cli, num_trials: u32, param: usize) -> MetricsData {
-
-    let mut deck = deck_optim::game::UnorderedPile::empty();
-    deck.add_copies(card_named("Lightning Bolt"), param);
-    deck.add_copies(card_named("Mountain"),  TOTAL_DECK_SIZE - param);
+fn evaluate_deck(cli: &Cli, num_trials: u32, deck: Deck) -> MetricsData {
 
     let watcher = WatcherImpl;
     let strategies = StrategyImpl {
         rng: rand::rngs::StdRng::from_entropy()
     };
-
-    println!("============= # of lightning bolts = {param} ==================");
 
     let metrics = run_trials(num_trials, deck, strategies, watcher);
     
@@ -118,18 +90,11 @@ struct ExperimentResult {
     measure: f32
 }
 
-fn run(cli: Cli) -> Result<()> {
-    let cards = parse_card_collection(&cli.card_collection)?;
-    log::info!("parsed {} cards", cards.num_cards());
-    deck_optim::init(cards);
-
-
-    let num_trials = cli.num_trials.unwrap_or(DEFAULT_NUM_TRIALS);
-
-    let results = (0..TOTAL_DECK_SIZE)
+/*
+ *let results = (0..TOTAL_DECK_SIZE)
         .into_iter()
         .map(|param| {
-            let metrics = evaluate_hyper_param(&cli, num_trials, param);
+            let metrics = evaluate_deck(&cli, num_trials, param);
             let mut measure = metrics.average("turn-to-reach-7-plays");
             if measure == 0.0 {
                 measure = 9999.0;
@@ -155,12 +120,26 @@ fn run(cli: Cli) -> Result<()> {
         };
         table.add_row(row![exp.param, exp.measure, is_best]);
     }
-
-
     println!();
     println!();
     println!("===================================================");
     table.printstd();
+
+*/
+
+fn run(cli: Cli) -> Result<()> {
+    let cards: CardCollection = file_utils::read_json_from_path(&cli.card_collection)?;
+    log::info!("parsed {} cards", cards.num_cards());
+    deck_optim::init(cards);
+
+    let decklist: DeckList = file_utils::read_json_from_path(cli.deck_list.as_ref().expect("expected decklist"))?;
+    log::info!("openned deck, has {} cards", decklist.count());
+
+    let num_trials = cli.num_trials.unwrap_or(DEFAULT_NUM_TRIALS);
+
+    let deck = decklist.into_deck()?;
+
+    let metrics = evaluate_deck(&cli, num_trials, deck);
 
     Ok(())
 }

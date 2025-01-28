@@ -1,13 +1,49 @@
+use crate::game::card::Card;
+
 use std::collections::HashMap;
 
-pub type MetricsKey = &'static str;
 pub type Uint = u32;
+
+#[derive(Debug,Copy,Clone,Eq,PartialEq,Hash,PartialOrd,Ord)]
+pub struct MetricsKey {
+    metrics_name: &'static str,
+    card_name: Option<&'static str>,
+}
+
+impl From<&'static str> for MetricsKey {
+    fn from(name: &'static str) -> Self {
+        MetricsKey {
+            metrics_name: name,
+            card_name: None,
+        }
+    }
+}
+impl From<(&'static str, Card)> for MetricsKey {
+    fn from(value: (&'static str, Card)) -> Self {
+        let (name, card) = value;
+        MetricsKey {
+            metrics_name: name,
+            card_name: Some(card.data().name.as_str())
+        }
+    }
+}
+
+impl ToString for MetricsKey {
+    fn to_string(&self) -> String {
+        match self.card_name {
+            Some(card) => format!("{}::{}", self.metrics_name, card),
+            None => format!("{}", self.metrics_name),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct MetricsData {
     pub(crate) trials_seen: Uint,
     metrics: HashMap<MetricsKey, Uint>,
 }
+
+
 
 impl MetricsData {
     /// Creates an empty metrics data.
@@ -34,7 +70,7 @@ impl MetricsData {
     /// metrics.add("cats seen");
     /// assert_eq!(metrics.get("cats seen"), 1);
     /// ```
-    pub fn add(&mut self, key: MetricsKey) {
+    pub fn add<K: Into<MetricsKey>>(&mut self, key: K) {
         self.add_count(key, 1);
     }
     
@@ -54,7 +90,7 @@ impl MetricsData {
     /// assert_eq!(metrics.get("cats seen"), 1);
     /// assert_eq!(metrics.get("dogs seen"), 0);
     /// ```
-    pub fn add_if(&mut self, key: MetricsKey, present: bool) {
+    pub fn add_if<K: Into<MetricsKey>>(&mut self, key: K, present: bool) {
         let count = match present {
             true => 1,
             false => 0,
@@ -72,8 +108,17 @@ impl MetricsData {
     /// metrics.add_count("cats seen", 120);
     /// assert_eq!(metrics.get("cats seen"), 120);
     /// ```
-    pub fn add_count(&mut self, key: MetricsKey, count: Uint) {
-        *self.metrics.entry(key).or_insert(0) += count;
+    pub fn add_count<K: Into<MetricsKey>>(&mut self, key: K, count: Uint) {
+        *self.metrics.entry(key.into()).or_insert(0) += count;
+    }
+
+    /// Sets the specified value, if it's not already been set
+    pub fn set<K: Into<MetricsKey>>(&mut self, key: K, value: Uint) {
+        use std::collections::hash_map::Entry::*;
+        match self.metrics.entry(key.into()) {
+            Occupied(_) => {},
+            Vacant(e) => { e.insert(value); }
+        }
     }
 
     /// Joins two metrics together
@@ -112,8 +157,8 @@ impl MetricsData {
     /// metrics.add_count("cats", 5);
     /// assert_eq!(metrics.get("cats"), 7);
     /// ```
-    pub fn get(&self, key: MetricsKey) -> Uint {
-        self.metrics.get(&key).copied().unwrap_or(0)
+    pub fn get<K: Into<MetricsKey>>(&self, key: K) -> Uint {
+        self.metrics.get(&key.into()).copied().unwrap_or(0)
     }
 
     pub fn keys(&self) -> impl Iterator<Item = MetricsKey> + '_ {
@@ -125,7 +170,7 @@ impl MetricsData {
     }
 
     /// Averages the metrics over the number of trials this metrics data represents
-    pub fn average(&self, key: MetricsKey) -> f32 {
+    pub fn average<K: Into<MetricsKey>>(&self, key: K) -> f32 {
         if self.trials_seen == 0 {
             return f32::NAN;
         }

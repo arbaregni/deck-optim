@@ -26,10 +26,12 @@ impl Watcher for WatcherImpl {
         metrics.add("land-drops");
     }
 
-    fn card_play(&self, _card_play: Card, state: &State, metrics: &mut MetricsData) {
+    fn card_play(&self, card_play: Card, state: &State, metrics: &mut MetricsData) {
         metrics.add("card-plays");
 
-        if metrics.get("card-plays") >= 7 && metrics.get("turn-to-reach-7-plays") == 0 {
+        metrics.set(("turn-played", card_play), state.turn);
+
+        if metrics.get("card-plays") == 7 {
             metrics.add_count("turn-to-reach-7-plays", state.turn);
         }
 

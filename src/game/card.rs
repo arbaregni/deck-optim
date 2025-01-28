@@ -5,6 +5,7 @@ use serde::Deserialize;
 use crate::card_data;
 use crate::game::mana::ManaPool;
 
+
 #[derive(Clone,Debug,Deserialize)]
 pub struct CardCollection {
     cards: Vec<CardData>,
@@ -35,7 +36,7 @@ impl CardCollection {
     }
 }
 
-#[derive(Clone,Copy,Eq,PartialEq,Hash)]
+#[derive(Clone,Copy,Eq,PartialEq,Hash,PartialOrd,Ord)]
 pub struct Card {
     idx: usize
 }
@@ -65,7 +66,7 @@ pub struct CardData {
 #[derive(Clone,Debug,Deserialize,Eq,PartialEq)]
 pub enum CardType {
     Land,
-    Instant
+    Instant,
 }
 
 #[allow(unused)]
