@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{self, BufWriter};
+use std::io::{self, BufWriter, Write};
 use std::io::Read;
 use std::path::PathBuf;
 
@@ -46,6 +46,13 @@ where T: serde::de::DeserializeOwned
         })?;
     Ok(out)
 
+}
+
+pub fn write_json_to_path<T: serde::ser::Serialize>(path: &PathBuf,  data: &T) -> std::io::Result<()> {
+    let bytes = serde_json::to_vec(data)?;
+    let mut file = File::create(path)?;
+    file.write_all(&bytes)?;
+    Ok(())
 }
 
 impl std::error::Error for ArgumentReadError { }

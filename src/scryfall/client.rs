@@ -5,9 +5,9 @@ use ratelimit_meter::{NonConformance, GCRA};
 use reqwest::{blocking::RequestBuilder, header::{ACCEPT, USER_AGENT}};
 use serde::de::DeserializeOwned;
 
-use crate::{scryfall::types, scryfall::error::ScryfallError, PROJECT_NAME};
+use crate::{game::CardSource, scryfall::{error::ScryfallError, types}, PROJECT_NAME};
 
-use super::types::CardCollectionRequest;
+use super::{convert, types::CardCollectionRequest};
 
 const SCRYFALL_API_ENDPOINT: &'static str = "https://api.scryfall.com";
 
@@ -143,6 +143,20 @@ impl ScryfallClient {
         }
 
         Ok(data)
+    }
+}
+
+impl CardSource for ScryfallClient {
+    fn get_cards_in_bulk(&mut self, card_names: Vec<String>) -> Result<Vec<crate::game::CardData>, Box<dyn std::error::Error>> {
+        let input = card_names
+            .iter()
+            .map(String::as_str);
+        let output = self.get_card_collection(input)?;
+        let card_data = output.data
+            .into_iter()
+            .map(convert::convert_card)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(card_data)
     }
 }
 

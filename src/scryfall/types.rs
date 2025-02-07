@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::game::{self, ManaPoolParseError};
+
 #[derive(Debug, Deserialize)]
 #[allow(unused)]
 pub struct CardData {
@@ -8,6 +10,7 @@ pub struct CardData {
     pub mana_cost: String,
     pub oracle_text: String,
 }
+
 
 #[derive(Debug, Deserialize)]
 #[allow(unused)]

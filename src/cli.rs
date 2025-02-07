@@ -6,9 +6,10 @@ use tracing_subscriber::filter::LevelFilter;
 #[derive(Parser, Debug)]
 #[command(version, about)]
 pub struct Cli {
-    #[arg(short='c', long)]
-    /// Supply an optional parameter to read the input from a file
-    pub card_collection: PathBuf,
+    #[arg(long)]
+    /// Supply this to force the cache to be refreshed
+    pub refresh: bool,
+
     #[arg(short='t', long)]
     pub num_trials: Option<u32>,
 

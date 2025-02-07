@@ -1,5 +1,7 @@
 use std::fmt;
 
+use regex::Regex;
+
 /// Represents an amount of mana somewhere.
 /// In a cost, producer, or in the player's mana pool.
 #[derive(Debug,Clone,PartialEq,Eq)]
@@ -37,7 +39,7 @@ impl ManaPool {
     /// ```
     /// use deck_optim::game::mana::ManaPool;
     ///
-    /// let source = "2G";
+    /// let source = "{2}{G}";
     ///
     /// let actual_mana = ManaPool::try_parse(source).expect("should parse");
     /// let expected_mana = ManaPool {
@@ -49,45 +51,40 @@ impl ManaPool {
     /// assert_eq!(expected_mana, actual_mana);
     /// ```
     pub fn try_parse(source: &str) -> Result<ManaPool, ManaPoolParseError> {
+
+        let overall = Regex::new(r"^(\{[WUBRG0-9]+\})*$").expect("regex to compile");
+        if !overall.is_match(source) {
+            return Err(ManaPoolParseError::DidNotMatchRegex {
+                re: overall,
+                bad_string: source.to_string()
+            })
+        }
+        let re = Regex::new(r"\{([WUBRG0-9]+)\}").expect("regex to compile");
+
         let mut mana = ManaPool::empty();
 
-        let mut chars = source.chars().peekable();
-
-        // split it into the numeric portion and the non numeric portion
-        let mut generic_portion = String::new();
-        while let Some(ch) = chars.peek() {
-            if ch.is_numeric() {
-                generic_portion.push(*ch);
-                chars.next();
-            } else {
-                break;
-            }
-        }
-
-        if generic_portion.len() > 0 {
-            let generic = match generic_portion.parse::<u8>() {
-                Ok(num) => num,
-                Err(err) => return Err(ManaPoolParseError {
-                    source: source.to_string(),
-                    why: format!("failed to parse generic cost of mana: {err}")
-                })
-            };
-            mana.generic = generic;
-        }
-
-        for ch in chars {
-            match ch {
-                'W' => mana.white += 1,
-                'U' => mana.blue += 1,
-                'B' => mana.black += 1,
-                'R' => mana.red += 1,
-                'G' => mana.green += 1,
-                _ => {
-                    return Err(ManaPoolParseError {
-                        source: source.to_string(),
-                        why: format!("invalid type of mana '{ch}'")
+        for cap in re.captures_iter(source) {
+            let mat = &cap[1]; // capture group contents
+            match mat {
+                "W" => mana.white += 1,
+                "U" => mana.blue += 1,
+                "B" => mana.black += 1,
+                "R" => mana.red += 1,
+                "G" => mana.green += 1,
+                digits if digits.chars().all(|ch| ch.is_ascii_digit()) => {
+                    mana.generic += match digits.parse::<u8>() {
+                        Ok(num) => num,
+                        Err(source) => return Err(ManaPoolParseError::FailedToParseGenericCost {
+                            source
+                        })
+                    };
+                }
+                bad_type => {
+                    return Err(ManaPoolParseError::InvalidManaType {
+                        bad_type: bad_type.to_string()
                     });
                 }
+
             }
         }
 
@@ -150,8 +147,7 @@ impl std::iter::Sum for ManaPool {
             total = total + mp;
         }
         total
-    }
-}
+    } }
 
 struct ManaPoolVisitor;
 impl <'de> serde::de::Visitor<'de> for ManaPoolVisitor {
@@ -165,7 +161,7 @@ impl <'de> serde::de::Visitor<'de> for ManaPoolVisitor {
         where E: serde::de::Error
     {
         let mp = ManaPool::try_parse(&value)
-            .map_err(|e| E::custom(e.why))?;
+            .map_err(|e| E::custom(e))?;
 
         Ok(mp)
     }
@@ -177,13 +173,41 @@ impl <'de> serde::Deserialize<'de> for ManaPool {
         deser.deserialize_str(ManaPoolVisitor)
     }
 }
-
-#[derive(Debug)]
-pub struct ManaPoolParseError {
-    why: String,
-#[allow(dead_code)]
-    source: String,
+impl serde::Serialize for ManaPool {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer
+    {
+        let s = format!("{}", self);
+        serializer.serialize_str(&s)
+    }
 }
+
+impl fmt::Display for ManaPool {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let ManaPool { white, blue, black, red, green, generic } = *self;
+        
+        write!(f, "{{{generic}}}")?;
+        for _ in 0..white   { write!(f, "{{W}}")?; }
+        for _ in 0..blue    { write!(f, "{{U}}")?; }
+        for _ in 0..black   { write!(f, "{{B}}")?; }
+        for _ in 0..red     { write!(f, "{{R}}")?; }
+        for _ in 0..green   { write!(f, "{{G}}")?; }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ManaPoolParseError {
+    #[error("not a valid type of mana `{bad_type}`")]
+    InvalidManaType { bad_type: String },
+    #[error("failure while parsing generic portion of mana")]
+    FailedToParseGenericCost { source: std::num::ParseIntError },
+    #[error("failed regex validation: `{bad_string}`. Must pass `{re}`")]
+    DidNotMatchRegex { re: Regex, bad_string: String },
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -195,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_generic() {
-        let source = "3";
+        let source = "{3}";
 
         let actual_mana = ManaPool::try_parse(source).expect("should parse");
         let expected_mana = ManaPool {
@@ -219,8 +243,20 @@ mod tests {
     }
 
     #[test]
+    fn test_zero() {
+        let source = "{0}";
+
+        let actual_mana = ManaPool::try_parse(source).expect("should parse");
+        let expected_mana = ManaPool {
+            ..default()
+        };
+
+        assert_eq!(expected_mana, actual_mana);
+    }
+
+    #[test]
     fn test_colors() {
-        let source = "WUBRG";
+        let source = "{W}{U}{B}{R}{G}";
 
         let actual_mana = ManaPool::try_parse(source).expect("should parse");
         let expected_mana = ManaPool {
@@ -237,7 +273,7 @@ mod tests {
 
     #[test]
     fn test_big_generic() {
-        let source = "10RG";
+        let source = "{10}{R}{G}";
 
         let actual_mana = ManaPool::try_parse(source).expect("should parse");
         let expected_mana = ManaPool {
@@ -249,6 +285,51 @@ mod tests {
 
         assert_eq!(expected_mana, actual_mana);
     }
+
+    #[test]
+    fn test_fail_regex() {
+        let source = "{1";
+
+        let result = ManaPool::try_parse(source);
+        assert!(result.is_err())
+    }
+
+    #[test]
+    fn test_fail_to_parse_mana_symbol() {
+        let source = "{*^%$}";
+
+        let result = ManaPool::try_parse(source);
+        assert!(result.is_err())
+    }
+
+    #[test]
+    fn test_fail_to_parse_big_number() {
+        let source = "{999999}";
+
+        let result = ManaPool::try_parse(source);
+        assert!(result.is_err())
+    }
+
+
+
+
+    #[test]
+    fn test_serialize_big_generic() {
+        let mana = ManaPool {
+            white: 3,
+            blue: 2,
+            black: 1,
+            generic: 10,
+            ..default()
+        };
+
+        let actual = format!("{}", mana);
+        let expected = "{10}{W}{W}{W}{U}{U}{B}";
+
+        assert_eq!(actual, expected);
+    }
+
+
 
     
     #[test]

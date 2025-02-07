@@ -1,14 +1,11 @@
-use std::fs::File;
-use std::io::Read;
-use std::path::PathBuf; 
-
 use clap::Parser;
 
 use deck_optim::game::Deck;
 use deck_optim::scryfall::ScryfallClient;
-use deck_optim::{card_named, deck::DeckList};
+use deck_optim::deck::DeckList;
 use deck_optim::strategies::StrategyImpl;
 use deck_optim::trial::run_trials;
+use directories::ProjectDirs;
 use itertools::Itertools;
 use prettytable::{row, Table};
 use rand::SeedableRng;
@@ -44,6 +41,14 @@ pub fn configure_logging(cli: &Cli) {
         .init();
    
 }
+
+pub fn project_dirs() -> Result<ProjectDirs> {
+    ProjectDirs::from("", "arbaregni", deck_optim::PROJECT_NAME)
+        .ok_or_else(|| {
+            format!("could not load cache directory for {}", deck_optim::PROJECT_NAME).into()
+        })
+}
+
 const DEFAULT_NUM_TRIALS: u32 = 10000; 
 
 fn make_table() -> Table {
@@ -69,7 +74,6 @@ fn report_metrics_data(_cli: &Cli, metrics: &MetricsData) -> Result<()> {
 }
 
 
-const TOTAL_DECK_SIZE: usize = 40;
 
 fn evaluate_deck(cli: &Cli, num_trials: u32, deck: Deck) -> MetricsData {
 
@@ -128,9 +132,49 @@ struct ExperimentResult {
 
 */
 
+const CARD_CACHE_FILENAME: &'static str = "cards.json";
+
+fn load_card_data(cli: Cli) -> Result<CardCollection> {
+    let project_dirs = project_dirs()?;
+    let card_cache = project_dirs.cache_dir().join(CARD_CACHE_FILENAME);
+
+    let scenario = vec!["Lightning Bolt".to_string(), "Mountain".to_string()];
+
+    let mut cards = CardCollection::empty();
+
+    if !cli.refresh {
+        log::info!("opening card cache at {}", card_cache.display());
+
+        match file_utils::read_json_from_path(&card_cache) {
+            Ok(c) => {
+                log::info!("read {} cards from cache", cards.num_cards());
+                cards = c;
+            }
+            Err(e) => {
+                log::warn!("could not read from card cache {}: it will be refreshed entirely", card_cache.display());
+                log::warn!("error reading from card cache: {e}");
+            }
+        }
+    }
+
+    let mut scryfall_client = ScryfallClient::new();
+
+    log::info!("need a total of {} cards from scenario", scenario.len());
+    cards.enhance_collection(scenario, &mut scryfall_client)?;
+
+    log::info!("found {} total cards", cards.num_cards());
+
+    log::info!("writing back to cache...");
+    file_utils::write_json_to_path(&card_cache, &cards)
+        .handle_err(|e| {
+            log::error!("unable to save back to card cache at {} due to {e}. Continueing...", card_cache.display());
+        });
+
+    Ok(cards)
+}
+
 fn run(cli: Cli) -> Result<()> {
-    let cards: CardCollection = file_utils::read_json_from_path(&cli.card_collection)?;
-    log::info!("parsed {} cards", cards.num_cards());
+    let cards = load_card_data(cli)?;
     deck_optim::init(cards);
 
     // set up scryfall data
