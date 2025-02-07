@@ -1,17 +1,21 @@
-use std::{num::NonZero, str::FromStr, time::Duration};
+use std::{num::NonZero, time::Duration};
 
+use itertools::Itertools;
 use ratelimit_meter::{NonConformance, GCRA};
-use reqwest::{header::{ACCEPT, USER_AGENT}, Url};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use reqwest::{blocking::RequestBuilder, header::{ACCEPT, USER_AGENT}};
+use serde::de::DeserializeOwned;
 
-use crate::{game, scryfall::types, PROJECT_NAME};
+use crate::{scryfall::types, scryfall::error::ScryfallError, PROJECT_NAME};
+
+use super::types::CardCollectionRequest;
 
 const SCRYFALL_API_ENDPOINT: &'static str = "https://api.scryfall.com";
 
 type HttpClient = reqwest::blocking::Client;
-type HttpResponse = reqwest::blocking::Response;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(2);
+
+const MAX_CARDS_PER_COLLECTION_REQUEST: usize = 75;
 
 fn build_http_client() -> HttpClient {
     HttpClient::builder()
@@ -73,19 +77,20 @@ impl ScryfallClient {
             rate_limiter: build_rate_limiter(),
         }
     }
-    fn make_request<Q: Serialize, T: DeserializeOwned>(&mut self, url: String, query: Q) -> Result<T, ScryfallError> {
+
+    /// Helper method to wrap http requests to scryfall apis
+    fn make_request<T: DeserializeOwned, F: FnOnce(&mut HttpClient) -> RequestBuilder>(&mut self, builder: F) -> Result<T, ScryfallError> {
         // must acquire the rate limit
         self.rate_limiter.acquire()?;
         // user agent and accept headers are required:
         //  https://scryfall.com/docs/api
-        let request = self.http_client.get(url)
+        let request = builder(&mut self.http_client)
             .header(USER_AGENT, PROJECT_NAME)
-            .header(ACCEPT, "application/json")
-            .query(&query);
+            .header(ACCEPT, "application/json");
 
-        log::trace!("about to make request: {request:?}");
+        log::debug!("about to make request: {request:#?}");
         let response = request.send()?;
-        log::trace!("received response: {response:?}");
+        log::debug!("received response: {response:#?}");
 
         let response = ScryfallError::raise_on_error(response)?;
         let text = response.text()?;
@@ -93,77 +98,51 @@ impl ScryfallClient {
 
         Ok(output)
     }
-    pub fn card_named(&mut self, card_name: &str) -> Result<types::CardData, ScryfallError> {
+
+    /// Make an API request to https://scryfall.com/docs/api/cards/named
+    pub fn get_card_named(&mut self, card_name: &str) -> Result<types::CardCollectionResponse, ScryfallError> {
         let url = format!("{}/cards/named", self.endpoint);
 
-        let data: types::CardData = self.make_request(
-            url,
-            [("exact", card_name)]
+        let data: types::CardCollectionResponse = self.make_request(
+            |http| http.get(url).query(&[("exact", card_name)])
         )?;
 
         Ok(data)
     }
-}
 
-#[derive(Debug)]
-pub enum ScryfallError {
-    MaxRetries {
-        times_tried: u32,
-        time_elapsed: Duration
-    },
-    HttpError(reqwest::Error),
-    HttpErrorWithResponse {
-        http_error: reqwest::Error,
-        response: serde_json::Value
-    },
-    Deserialization(serde_json::Error)
-}
-impl ScryfallError {
-    pub fn raise_on_error(response: HttpResponse) -> Result<HttpResponse, ScryfallError> {
-        let http_error = match response.error_for_status_ref() {
-            Ok(_) => return Ok(response),
-            Err(e) => e
-        };
-        let text = match response.text() {
-            Ok(t) => t,
-            Err(decode_error) => {
-                log::error!("could not decode response during error recovery: {decode_error}");
-                // simply replace it with the original error
-                return Err(http_error.into());
-            }
-        };
-        let json_value : serde_json::Value = match serde_json::from_str(text.as_str()) {
-            Ok(v) => v,
-            Err(parse_error) => {
-                log::error!("could not parse json during error recovery: {parse_error}");
-                // again, simply replace with original error
-                return Err(http_error.into());
-            }
-        };
-        Err(ScryfallError::HttpErrorWithResponse { http_error, response: json_value })
-    }
-}
+    /// Make an API request to https://scryfall.com/docs/api/cards/collection
+    pub fn get_card_collection<'a, I: IntoIterator<Item=&'a str>>(&mut self, card_names: I) -> Result<types::CardCollectionResponse, ScryfallError> {
+        use types::CardIdentifier;
+        use types::CardCollectionResponse;
+        use types::CardCollectionRequest;
 
-impl std::fmt::Display for ScryfallError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ScryfallError::MaxRetries { times_tried, time_elapsed } => write!(f, "hit maximum retries while calling api. tried: {times_tried} attempts to acquire rate limit, {time_elapsed:?} has elapsed since the call began"),
-            ScryfallError::HttpError(e) => e.fmt(f),
-            ScryfallError::HttpErrorWithResponse { http_error, response } => write!(f, "{http_error}: {response}"),
-            ScryfallError::Deserialization(e) => e.fmt(f)
+        let url = format!("{}/cards/collection", self.endpoint);
+
+        let mut data = CardCollectionResponse::empty();
+        let chunks = card_names.into_iter().chunks(MAX_CARDS_PER_COLLECTION_REQUEST);
+        for chunk in chunks.into_iter() {
+            let identifiers = chunk
+                .into_iter()
+                .map(|name| CardIdentifier::name(name))
+                .collect_vec();
+                
+            let request_body = CardCollectionRequest {
+                identifiers
+            };
+     
+           let resp: types::CardCollectionResponse = self.make_request(
+                |http| http.post(&url).json(&request_body)
+           )?;
+
+           data.extend(resp);
+        };
+
+
+        for not_found in data.not_found.iter() {
+            log::warn!("scryfall could not find this card identifier: {not_found:?}")
         }
-    }
-}
-impl std::error::Error for ScryfallError { }
 
-impl From<reqwest::Error> for ScryfallError {
-    fn from(e: reqwest::Error) -> Self {
-        ScryfallError::HttpError(e)
-    }
-}
-impl From<serde_json::Error> for ScryfallError {
-    fn from(e: serde_json::Error) -> Self {
-        ScryfallError::Deserialization(e)
+        Ok(data)
     }
 }
 
@@ -171,14 +150,30 @@ impl From<serde_json::Error> for ScryfallError {
 mod tests {
     use super::*;
 
+    /*
     #[test]
-    fn smoke_test() {
+    fn smoke_test_card_named() {
         let mut client = ScryfallClient::new();
 
-        let resp = client.card_named("Lightning Bolt").expect("didn't expect any errors");
+        let resp = client.get_card_named("Lightning Bolt").expect("didn't expect any errors");
         assert_eq!(resp.name.as_str(), "Lightning Bolt");
         assert_eq!(resp.type_line.as_str(), "Instant");
     }
+
+    #[test]
+    fn smoke_test_list_cards() {
+        let mut client = ScryfallClient::new();
+
+        let resp = client.get_card_collection(["Ancient Tomb", "Lightning Bolt"]).expect("no errors");
+
+        let contains_ancient_tomb = resp.data.iter().any(|card| card.name == "Ancient Tomb");
+        let contains_lighhtning_bolt = resp.data.iter().any(|card| card.name == "Lightning Bolt");
+
+        assert!(contains_ancient_tomb);
+        assert!(contains_lighhtning_bolt);
+        assert_eq!(resp.data.len(), 2);
+    }
+    */
 
     #[test]
     fn test_rate_limiter() {

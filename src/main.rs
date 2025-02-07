@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use clap::Parser;
 
 use deck_optim::game::Deck;
+use deck_optim::scryfall::ScryfallClient;
 use deck_optim::{card_named, deck::DeckList};
 use deck_optim::strategies::StrategyImpl;
 use deck_optim::trial::run_trials;
@@ -131,6 +132,14 @@ fn run(cli: Cli) -> Result<()> {
     let cards: CardCollection = file_utils::read_json_from_path(&cli.card_collection)?;
     log::info!("parsed {} cards", cards.num_cards());
     deck_optim::init(cards);
+
+    // set up scryfall data
+    let mut client = ScryfallClient::new();
+
+    let results = client.get_card_collection(["Lightning Bolt", "Mountain"])?;
+    log::info!("got results from scryfall: {results:#?}");
+
+    return Ok(());
 
     let decklist: DeckList = file_utils::read_json_from_path(cli.deck_list.as_ref().expect("expected decklist"))?;
     log::info!("openned deck, has {} cards", decklist.count());
