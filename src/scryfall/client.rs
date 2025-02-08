@@ -142,6 +142,8 @@ impl ScryfallClient {
             log::warn!("scryfall could not find this card identifier: {not_found:?}")
         }
 
+        log::debug!("received response: {data:#?}");
+
         Ok(data)
     }
 }

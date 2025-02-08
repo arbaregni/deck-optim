@@ -82,9 +82,18 @@ pub struct CardData {
 }
 
 #[derive(Clone,Debug,Serialize,Deserialize,Eq,PartialEq)]
+pub enum SuperType {
+    Legendary,
+    Basic,
+    Snow,
+    World
+}
+
+#[derive(Clone,Debug,Serialize,Deserialize,Eq,PartialEq)]
 pub enum CardType {
     Land,
     Instant,
+    Creature,
 }
 
 #[allow(unused)]

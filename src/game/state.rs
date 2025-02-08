@@ -98,6 +98,9 @@ impl State {
             CardType::Instant => {
                 self.graveyard.add(card);
             }
+            CardType::Creature => {
+                todo!()
+            }
         }
     }
 
