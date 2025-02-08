@@ -5,9 +5,12 @@ use ratelimit_meter::{NonConformance, GCRA};
 use reqwest::{blocking::RequestBuilder, header::{ACCEPT, USER_AGENT}};
 use serde::de::DeserializeOwned;
 
-use crate::{game::CardSource, scryfall::{error::ScryfallError, types}, PROJECT_NAME};
+use crate::{
+    collection::CardSource,
+    PROJECT_NAME
+};
+use crate::scryfall::{error::ScryfallError, types, convert};
 
-use super::{convert, types::CardCollectionRequest};
 
 const SCRYFALL_API_ENDPOINT: &'static str = "https://api.scryfall.com";
 
