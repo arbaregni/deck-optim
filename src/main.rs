@@ -134,7 +134,7 @@ struct ExperimentResult {
 
 const CARD_CACHE_FILENAME: &'static str = "cards.json";
 
-fn load_card_data(cli: Cli) -> Result<CardCollection> {
+fn load_card_data(cli: Cli, scryfall_client: &mut ScryfallClient) -> Result<CardCollection> {
     let project_dirs = project_dirs()?;
     let card_cache = project_dirs.cache_dir().join(CARD_CACHE_FILENAME);
 
@@ -157,31 +157,28 @@ fn load_card_data(cli: Cli) -> Result<CardCollection> {
         }
     }
 
-    let mut scryfall_client = ScryfallClient::new();
-
     log::info!("need a total of {} cards from scenario", scenario.len());
-    cards.enhance_collection(scenario, &mut scryfall_client)?;
+    cards.enhance_collection(scenario, scryfall_client)?;
 
     log::info!("found {} total cards", cards.num_cards());
 
     log::info!("writing back to cache...");
     file_utils::write_json_to_path(&card_cache, &cards)
         .handle_err(|e| {
-            log::error!("unable to save back to card cache at {} due to {e}. Continueing...", card_cache.display());
+            log::error!("unable to save back to card cache at {} due to: {e}", card_cache.display());
         });
 
     Ok(cards)
 }
 
 fn run(cli: Cli) -> Result<()> {
-    let cards = load_card_data(cli)?;
+    let mut scryfall_client = ScryfallClient::new();
+
+    let cards = load_card_data(cli, &mut scryfall_client)?;
+    log::info!("loaded cards: {cards:#?}");
+
     deck_optim::init(cards);
 
-    // set up scryfall data
-    let mut client = ScryfallClient::new();
-
-    let results = client.get_card_collection(["Lightning Bolt", "Mountain"])?;
-    log::info!("got results from scryfall: {results:#?}");
 
     return Ok(());
 

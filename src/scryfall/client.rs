@@ -103,6 +103,7 @@ impl ScryfallClient {
     pub fn get_card_named(&mut self, card_name: &str) -> Result<types::CardCollectionResponse, ScryfallError> {
         let url = format!("{}/cards/named", self.endpoint);
 
+        log::info!("looking up card name data from scryfall");
         let data: types::CardCollectionResponse = self.make_request(
             |http| http.get(url).query(&[("exact", card_name)])
         )?;
@@ -130,6 +131,7 @@ impl ScryfallClient {
                 identifiers
             };
      
+           log::info!("requesting card data from scryfall");
            let resp: types::CardCollectionResponse = self.make_request(
                 |http| http.post(&url).json(&request_body)
            )?;

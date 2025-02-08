@@ -7,6 +7,7 @@ edition = "2021"
 ariadne = "0.5.0"
 clap = { version = "4.5", features = ["derive"] }
 clap_derive = "4.5"
+directories = "6.0.0"
 itertools = "0.13.0"
 linear-map = "1.2.0"
 linearmap = "0.0.3"
@@ -16,9 +17,11 @@ prettytable-rs = "0.10.0"
 rand = "0.8.5"
 ratelimit_meter = "5.0.0"
 rayon = "1.10.0"
+regex = "1.11.1"
 reqwest = { version = "0.12.12", features = ["blocking", "json"] }
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.134"
+thiserror = "2.0.11"
 tower = { version = "0.5.2", features = ["limit"] }
 tracing = "0.1.41"
 tracing-appender = "0.2.3"

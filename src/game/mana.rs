@@ -187,7 +187,7 @@ impl fmt::Display for ManaPool {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ManaPool { white, blue, black, red, green, generic } = *self;
         
-        write!(f, "{{{generic}}}")?;
+        if generic > 0 { write!(f, "{{{generic}}}")?; }
         for _ in 0..white   { write!(f, "{{W}}")?; }
         for _ in 0..blue    { write!(f, "{{U}}")?; }
         for _ in 0..black   { write!(f, "{{B}}")?; }

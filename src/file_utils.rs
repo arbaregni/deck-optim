@@ -14,6 +14,7 @@ pub enum ArgumentReadError {
         file_name: PathBuf,
         cause: io::Error,
     },
+    #[allow(dead_code)]
     InvalidJson {
         file_name: PathBuf,
         cause: serde_json::Error,
@@ -49,8 +50,12 @@ where T: serde::de::DeserializeOwned
 }
 
 pub fn write_json_to_path<T: serde::ser::Serialize>(path: &PathBuf,  data: &T) -> std::io::Result<()> {
-    let bytes = serde_json::to_vec(data)?;
+    if let Some(parent) = path.parent() {
+        log::info!("creating parent directory at {}", parent.display());
+        std::fs::create_dir_all(parent)?;
+    }
     let mut file = File::create(path)?;
+    let bytes = serde_json::to_vec(data)?;
     file.write_all(&bytes)?;
     Ok(())
 }
@@ -63,7 +68,7 @@ impl std::fmt::Display for ArgumentReadError {
         match self {
             FailedToOpenFile { file_name, cause } => write!(f, "failed to open file {} for reading: {cause}", file_name.display()),
             ErrorWhileReadingFile { file_name, cause } => write!(f, "failed to read file {}: {cause}", file_name.display()),
-            InvalidJson { file_name, cause, report } => {
+            InvalidJson { file_name: _, cause: _, report } => {
                 write!(f, "{report}")
                 // write!(f, "failed to parse json from {}: {cause}", file_name.display())
             }
