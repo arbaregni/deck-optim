@@ -92,7 +92,6 @@ pub fn convert_card(card: types::CardData) -> Result<game::CardData, ConversionE
         name: card.name,
         card_type,
         cost,
-        produces: None,
     };
     Ok(out)
 

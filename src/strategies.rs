@@ -34,7 +34,7 @@ impl Strategy for StrategyImpl {
     fn card_plays(&mut self, state: &State) -> Vec<Card> { 
         let available_mana = state.lands
             .iter()
-            .filter_map(|c| c.data().produces.as_ref())
+            .filter_map(|c| c.produces_mana())
             .cloned()
             .sum();
         let potential_plays = state.hand.iter().collect_vec();
@@ -89,7 +89,7 @@ mod card_play_strategies {
                         ok
                     }
                     None => {
-                        log::debug!(" can't play {card:?}, no mana cost");
+                        log::debug!(" can't cast {card:?}, no mana cost");
                         false
                     }
                 }

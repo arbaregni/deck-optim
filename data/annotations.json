@@ -1,0 +1,18 @@
+{
+    "annotations": [
+        {
+            "targets": ["Mountain"],
+            "key": "produces",
+            "value": {
+                "Mana": "{R}"
+            }
+        },
+        {
+            "targets": ["Forest"],
+            "key": "produces",
+            "value": { 
+                "Mana": "{G}"
+            }
+        }
+    ]
+}

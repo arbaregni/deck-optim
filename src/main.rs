@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use clap::Parser;
 
 use deck_optim::collection::CardSource;
+use deck_optim::game::annotations::CardAnnotations;
 use deck_optim::game::Deck;
 use deck_optim::scryfall::ScryfallClient;
 use deck_optim::deck::DeckList;
@@ -40,6 +41,10 @@ pub struct Cli {
     #[arg(long)]
     /// Supply this parameter to change the default level filters
     pub level_filter: Option<LevelFilter>,
+
+    #[arg(short='a', long)]
+    /// Supply this parameter to use a custom source for card annotations
+    pub annotations: Option<PathBuf>,
 
     #[arg(short='d', long)]
     pub deck_list: PathBuf,
@@ -114,7 +119,7 @@ fn card_cache_path() -> Result<PathBuf> {
 }
 
 fn load_card_data(scenario: Vec<&str>, cli: &Cli, card_cache: &mut LocalCardCache, scryfall_client: &mut ScryfallClient) -> Result<CardCollection> {
-    let cards;
+    let mut cards;
     if cli.refresh {
         cards = CardCollection::from_source(&scenario, scryfall_client)?;
     } else {
@@ -126,6 +131,14 @@ fn load_card_data(scenario: Vec<&str>, cli: &Cli, card_cache: &mut LocalCardCach
 
     log::info!("writing back to cache...");
     card_cache.save(cards.all_card_data());
+
+    if let Some(annotation_path) = cli.annotations.as_ref() {
+        log::info!("a filepath was supplied for annotations, searching at {}", annotation_path.display());
+        let card_annotations: CardAnnotations = file_utils::read_json_from_path(annotation_path)?;
+        log::info!("found {} annotations, applying them now", card_annotations.len());
+
+        cards.apply_annotations(card_annotations);
+    }
 
     Ok(cards)
 }
@@ -143,11 +156,10 @@ fn run(cli: Cli) -> Result<()> {
     let scenario = decklist.card_names();
 
     let cards = load_card_data(scenario, &cli, &mut card_cache, &mut scryfall_client)?;
-    deck_optim::init(cards);
-
-    
-    let deck = decklist.into_deck()
+    let deck = decklist.into_deck(&cards)
         .inspect_err(|e| log::error!("error while loading deck list: {e}"))?;
+
+    deck_optim::init(cards);
 
     // do the trial
 

@@ -3,6 +3,7 @@ pub mod unordered_pile;
 pub mod state;
 pub mod card;
 pub mod mana;
+pub mod annotations;
 
 pub use ordered_pile::*;
 pub use unordered_pile::*;

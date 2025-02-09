@@ -1,12 +1,12 @@
 use std::collections::HashMap;
-use once_cell::sync::OnceCell;
-use thiserror::Error;
-use crate::game::CardData;
+
+use crate::game::{annotations::{Annotation, AnnotationTarget, CardAnnotations}, CardData};
 
 #[derive(Clone,Debug)]
 pub struct CardCollection {
     cards: Vec<CardData>,
-    name_lookup: HashMap<String, Card>
+    name_lookup: HashMap<String, Card>,
+    annotations: HashMap<Card, Vec<Annotation>>,
 }
 
 impl CardCollection {
@@ -14,7 +14,8 @@ impl CardCollection {
     pub fn empty() -> Self {
         Self {
             cards: Vec::new(),
-            name_lookup: HashMap::new()
+            name_lookup: HashMap::new(),
+            annotations: HashMap::new(),
         }
     }
     /// Initialize a collection from a vector of card data
@@ -27,7 +28,8 @@ impl CardCollection {
         }
         Self {
             cards,
-            name_lookup
+            name_lookup,
+            annotations: HashMap::new(),
         }
     }
     /// Initialize from a list of sources
@@ -57,6 +59,28 @@ impl CardCollection {
     }
     pub fn all_card_data(&self) -> &[CardData] {
         self.cards.as_slice()
+    }
+    pub fn apply_annotations(&mut self, annotations: CardAnnotations) {
+        annotations
+            .into_iter()
+            .for_each(|an| {
+                let AnnotationTarget { targets, annotation } = an;
+                for card_name in targets {
+                    let Some(card) = self.card_named(card_name.as_str()) else {
+                        log::debug!("annotation is targetting {card_name}, but it does not exist");
+                        continue;
+                    };
+                    self.annotations.entry(card)
+                        .or_default()
+                        .push(annotation.clone());
+                }
+            });
+    }
+    pub fn get_annotations(&self, card: Card) -> &[Annotation] {
+        const EMPTY: &'static [Annotation] = &[];
+        self.annotations.get(&card)
+            .map(Vec::as_slice)
+            .unwrap_or(EMPTY)
     }
 }
 
@@ -115,61 +139,64 @@ impl <'a> CardSource for ChainCardSource<'a> {
 pub struct Card {
     idx: usize
 }
-impl Card {
-    /// Retrieves the globally registered card data.
-    /// Panics if the global collection has not been initialized.
-    pub fn data(self) -> &'static CardData {
-        card_data(self)
-    }
-}
-
 impl std::fmt::Debug for Card {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match get_card_data(*self) {
+        match global_collection::get_card_data(*self) {
             Some(data) => write!(f, "Card{{ idx{} - \"{}\"}}", self.idx, data.name),
             None => write!(f, "Card{{ idx{} - (no data)}}", self.idx)
         }
     }
 }
 
-static CARD_COLLECTION: OnceCell<CardCollection> = OnceCell::new();
-
-pub fn init(card_collection: CardCollection) {
-    CARD_COLLECTION.set(card_collection)
-        .expect("initialization");
+impl Card {
+    /// Retrieves the globally registered card data.
+    /// Panics if the global collection has not been initialized.
+    pub fn data(self) -> &'static CardData {
+        global_collection::get_card_data(self).expect("card collection initialized")
+    }
+    pub fn annotations(self) -> impl Iterator<Item = &'static Annotation> {
+        global_collection::get_card_annotations(self).expect("card collection initialized").iter()
+    }
+    pub fn has_annotation(self, key: &str) -> bool {
+        self.annotations().any(|a| a.key == key)
+    }
 }
 
-/// Retrieves the card data from a globally initialized card collection
-pub fn card_data(card: Card) -> &'static CardData {
-    CARD_COLLECTION.get()
-        .expect("unitialized")
-        .card_data(card)
-}
-pub fn get_card_data(card: Card) -> Option<&'static CardData> {
-    let col = CARD_COLLECTION.get()?;
-    col.get(card)
-}
 
-pub fn get_card_named(name: &str) -> Result<Card, CardNotFoundError> {
-    let col = CARD_COLLECTION.get()
-        .ok_or_else(|| CardNotFoundError::NameLookupUnintialized { card_name: name.to_string() })?;
-    col.card_named(name)
-        .ok_or_else(|| CardNotFoundError::CardNameNotPresent { card_name: name.to_string() })
-}
-pub fn card_named(name: &str) -> Card {
-    CARD_COLLECTION.get()
-        .expect("unitialized")
-        .card_named(name)
-        .expect("missing card")
-}
+mod global_collection {
+    use super::*;
 
-#[derive(Debug,Error)]
-pub enum CardNotFoundError {
-    #[error("unable to lookup card with name '{card_name}', card collection is not initialized")]
-    NameLookupUnintialized { card_name: String },
-    #[error("could not find a card with name '{card_name}'")]
-    CardNameNotPresent { card_name: String }
+    use once_cell::sync::OnceCell;
+    use thiserror::Error;
+
+    static CARD_COLLECTION: OnceCell<CardCollection> = OnceCell::new();
+
+    pub fn init(card_collection: CardCollection) {
+        CARD_COLLECTION.set(card_collection)
+            .expect("initialization");
+    }
+
+    /// Retrieves the card data from a globally initialized card collection
+    pub fn get_card_data(card: Card) -> Option<&'static CardData> {
+        let col = CARD_COLLECTION.get()?;
+        col.get(card)
+    }
+
+    /// Retrieves the card annotations from a globally initialzied card collection
+    pub fn get_card_annotations(card: Card) -> Result<&'static [Annotation], CardNotFoundError> {
+        let col = CARD_COLLECTION.get()
+            .ok_or_else(|| CardNotFoundError::NotInitialized { card })?;
+        let annot = col.get_annotations(card);
+        Ok(annot)
+    }
+
+    #[derive(Debug,Error)]
+    pub enum CardNotFoundError {
+        #[error("unable to lookup card '{card:?}', card collection is not initialized")]
+        NotInitialized { card: Card },
+    }
 }
+pub use global_collection::init;
 
 #[allow(unused)]
 pub fn get_sample_cards(num: usize) -> Vec<Card> {

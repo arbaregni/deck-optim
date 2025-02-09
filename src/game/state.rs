@@ -134,7 +134,8 @@ impl State {
     pub fn available_mana(&self) -> ManaPool {
         self.lands
             .iter()
-            .filter_map(|c| c.data().produces.clone())
+            .filter_map(|c| c.produces_mana())
+            .cloned()
             .sum()
     }
     pub fn num_lands_in_hand(&self) -> usize {
