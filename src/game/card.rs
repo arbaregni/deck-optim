@@ -24,5 +24,6 @@ pub enum CardType {
     Land,
     Instant,
     Creature,
+    Sorcery,
 }
 

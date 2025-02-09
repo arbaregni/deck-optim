@@ -1,5 +1,6 @@
 use crate::metrics::MetricsData;
-use crate::game::{state::State, Card};
+use crate::collection::Card;
+use crate::game::state::State;
 
 
 #[allow(unused)]

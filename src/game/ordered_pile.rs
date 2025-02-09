@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use crate::game::card::Card;
+use crate::collection::Card;
 
 use super::UnorderedPile;
 
@@ -44,12 +44,12 @@ impl OrderedPile {
 
 #[cfg(test)]
 mod tests {
-    use crate::game::card;
+    use crate::collection::get_sample_cards;
     use super::*;
 
     #[test]
     fn test_draw_single_card() {
-        let cards = card::get_sample_cards(3);
+        let cards = get_sample_cards(3);
         let mut pile = OrderedPile { cards: cards.clone() };
 
         let drawn_card = pile.draw();
@@ -70,7 +70,7 @@ mod tests {
 
     #[test]
     fn test_draw_n_fewer_than_available() {
-        let cards = card::get_sample_cards(3);
+        let cards = get_sample_cards(3);
         let mut pile = OrderedPile { cards: cards.clone() };
 
         let hand = pile.draw_n(2);
@@ -81,7 +81,7 @@ mod tests {
 
     #[test]
     fn test_draw_n_exactly_available() {
-        let cards = card::get_sample_cards(3);
+        let cards = get_sample_cards(3);
         let mut pile = OrderedPile { cards: cards.clone() };
 
         let hand = pile.draw_n(3);
@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn test_draw_n_more_than_available() {
-        let cards = card::get_sample_cards(3);
+        let cards = get_sample_cards(3);
         let mut pile = OrderedPile { cards: cards.clone() };
 
         let hand = pile.draw_n(5);

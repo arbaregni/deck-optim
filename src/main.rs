@@ -1,5 +1,8 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 
+use deck_optim::collection::CardSource;
 use deck_optim::game::Deck;
 use deck_optim::scryfall::ScryfallClient;
 use deck_optim::deck::DeckList;
@@ -15,16 +18,32 @@ use tracing_subscriber::Layer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::filter::LevelFilter;
 
-use deck_optim::game::card::CardCollection;
+use deck_optim::collection::CardCollection;
 use deck_optim::metrics::MetricsData;
 use deck_optim::watcher::WatcherImpl;
 
-mod cli;
-use cli::Cli;
-
-mod file_utils;
+use deck_optim::card_cache::LocalCardCache;
+use deck_optim::file_utils;
 
 type Result<T, E=Box<dyn std::error::Error>> = std::result::Result<T, E>;
+
+#[derive(Parser, Debug)]
+#[command(version, about)]
+pub struct Cli {
+    #[arg(long)]
+    /// Supply this to force the cache to be refreshed
+    pub refresh: bool,
+
+    #[arg(short='t', long)]
+    pub num_trials: Option<u32>,
+
+    #[arg(long)]
+    /// Supply this parameter to change the default level filters
+    pub level_filter: Option<LevelFilter>,
+
+    #[arg(short='d', long)]
+    pub deck_list: PathBuf,
+}
 
 pub fn configure_logging(cli: &Cli) {
     let level_filter = cli.level_filter.unwrap_or(LevelFilter::INFO);
@@ -73,10 +92,7 @@ fn report_metrics_data(_cli: &Cli, metrics: &MetricsData) -> Result<()> {
     Ok(())
 }
 
-
-
 fn evaluate_deck(cli: &Cli, num_trials: u32, deck: Deck) -> MetricsData {
-
     let watcher = WatcherImpl;
     let strategies = StrategyImpl {
         rng: rand::rngs::StdRng::from_entropy()
@@ -90,106 +106,55 @@ fn evaluate_deck(cli: &Cli, num_trials: u32, deck: Deck) -> MetricsData {
     metrics
 }
 
-struct ExperimentResult {
-    param: usize,
-    measure: f32
-}
-
-/*
- *let results = (0..TOTAL_DECK_SIZE)
-        .into_iter()
-        .map(|param| {
-            let metrics = evaluate_deck(&cli, num_trials, param);
-            let mut measure = metrics.average("turn-to-reach-7-plays");
-            if measure == 0.0 {
-                measure = 9999.0;
-            }
-            ExperimentResult {
-                param,
-                measure
-            }
-        })
-        .collect_vec();
-
-    // select the best parameter
-    let best = results
-        .iter()
-        .min_by(|exp1, exp2| exp1.measure.partial_cmp(&exp2.measure).expect("no nan"));
-
-    let mut table = make_table();
-    table.set_titles(row!["# of lightning bolts", "turns until 21 damage", ""]);
-    for exp in results.iter() {
-        let is_best = match best {
-            Some(best_exp) if best_exp.param == exp.param => "BEST",
-            _ => ""
-        };
-        table.add_row(row![exp.param, exp.measure, is_best]);
-    }
-    println!();
-    println!();
-    println!("===================================================");
-    table.printstd();
-
-*/
-
 const CARD_CACHE_FILENAME: &'static str = "cards.json";
-
-fn load_card_data(cli: Cli, scryfall_client: &mut ScryfallClient) -> Result<CardCollection> {
+fn card_cache_path() -> Result<PathBuf> {
     let project_dirs = project_dirs()?;
     let card_cache = project_dirs.cache_dir().join(CARD_CACHE_FILENAME);
+    Ok(card_cache)
+}
 
-    let scenario = vec!["Lightning Bolt".to_string(), "Mountain".to_string()];
-
-    let mut cards = CardCollection::empty();
-
-    if !cli.refresh {
-        log::info!("opening card cache at {}", card_cache.display());
-
-        match file_utils::read_json_from_path(&card_cache) {
-            Ok(c) => {
-                log::info!("read {} cards from cache", cards.num_cards());
-                cards = c;
-            }
-            Err(e) => {
-                log::warn!("could not read from card cache {}: it will be refreshed entirely", card_cache.display());
-                log::warn!("error reading from card cache: {e}");
-            }
-        }
+fn load_card_data(scenario: Vec<&str>, cli: &Cli, card_cache: &mut LocalCardCache, scryfall_client: &mut ScryfallClient) -> Result<CardCollection> {
+    let cards;
+    if cli.refresh {
+        cards = CardCollection::from_source(&scenario, scryfall_client)?;
+    } else {
+        cards = CardCollection::from_source(&scenario, &mut card_cache.chain(scryfall_client))?;
     }
 
-    log::info!("need a total of {} cards from scenario", scenario.len());
-    cards.enhance_collection(scenario, scryfall_client)?;
-
     log::info!("found {} total cards", cards.num_cards());
+    log::debug!("loaded cards: {cards:#?}");
 
     log::info!("writing back to cache...");
-    file_utils::write_json_to_path(&card_cache, &cards)
-        .handle_err(|e| {
-            log::error!("unable to save back to card cache at {} due to: {e}", card_cache.display());
-        });
+    card_cache.save(cards.all_card_data());
 
     Ok(cards)
 }
 
 fn run(cli: Cli) -> Result<()> {
+    let card_cache = card_cache_path()?;
+    let mut card_cache = LocalCardCache::from(card_cache);
     let mut scryfall_client = ScryfallClient::new();
 
-    let cards = load_card_data(cli, &mut scryfall_client)?;
-    log::info!("loaded cards: {cards:#?}");
-
-    deck_optim::init(cards);
-
-
-    return Ok(());
-
-    let decklist: DeckList = file_utils::read_json_from_path(cli.deck_list.as_ref().expect("expected decklist"))?;
+    log::info!("loading deck from file");
+    let decklist: DeckList = file_utils::read_json_from_path(&cli.deck_list)?;
     log::info!("openned deck, has {} cards", decklist.count());
 
+
+    let scenario = decklist.card_names();
+
+    let cards = load_card_data(scenario, &cli, &mut card_cache, &mut scryfall_client)?;
+    deck_optim::init(cards);
+
+    
+    let deck = decklist.into_deck()
+        .inspect_err(|e| log::error!("error while loading deck list: {e}"))?;
+
+    // do the trial
+
     let num_trials = cli.num_trials.unwrap_or(DEFAULT_NUM_TRIALS);
-
-    let deck = decklist.into_deck()?;
-
     let metrics = evaluate_deck(&cli, num_trials, deck);
+
+    report_metrics_data(&cli, &metrics)?;
 
     Ok(())
 }

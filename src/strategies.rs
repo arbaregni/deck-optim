@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use rand::Rng;
 
-use crate::game::card::Card;
+use crate::collection::Card;
 use crate::game::card::CardType;
 use crate::game::state::State;
 use crate::game::unordered_pile::UnorderedPile;

@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use rand::Rng;
 
-use crate::game::card::Card;
+use crate::collection::Card;
 use crate::game::card::CardType;
 use crate::trial::Rand;
 use crate::game::{
@@ -95,7 +95,7 @@ impl State {
                 self.turn_state.land_drops_made += 1;
                 self.lands.add(card);
             }
-            CardType::Instant => {
+            CardType::Instant  | CardType::Sorcery => {
                 self.graveyard.add(card);
             }
             CardType::Creature => {

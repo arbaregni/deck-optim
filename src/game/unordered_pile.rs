@@ -1,7 +1,7 @@
 use rand::seq::SliceRandom;
 
 use crate::trial::Rand;
-use crate::game::Card;
+use crate::collection::Card;
 
 use super::OrderedPile;
 

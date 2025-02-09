@@ -1,4 +1,4 @@
-use crate::game::Card;
+use crate::collection::Card;
 
 use std::collections::HashMap;
 

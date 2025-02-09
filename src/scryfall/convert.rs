@@ -1,6 +1,4 @@
 use itertools::Itertools;
-use serde::de::IntoDeserializer;
-use serde::{Deserialize, Deserializer};
 
 use crate::game;
 use crate::scryfall::types;
@@ -52,6 +50,7 @@ pub fn convert_card_types(types: &str) -> Result<CardTypes, ConversionError> {
         match card_type.to_lowercase().as_str() {
             "land"      => card_types.push(Land),
             "instant"   => card_types.push(Instant),
+            "sorcery"   => card_types.push(Sorcery),
             "creature"  => card_types.push(Creature),
 
             "basic"     => super_types.push(Basic),

@@ -1,21 +1,29 @@
+use thiserror::Error;
+
 use std::time::Duration;
+
+use super::convert;
 
 type HttpResponse = reqwest::blocking::Response;
 
 
-#[derive(Debug)]
+#[derive(Debug,Error)]
 pub enum ScryfallError {
-    MaxRetries {
-        times_tried: u32,
-        time_elapsed: Duration
-    },
-    HttpError(reqwest::Error),
+    #[error("hit maximum allowable retires while calling API, attempted to acquire rate limit {times_tried}")]
+    MaxRetries { times_tried: u32, time_elapsed: Duration },
+    #[error("http error while communicating with remote")]
+    HttpError(#[from] reqwest::Error),
+    #[error("http error while communicating with remote")]
     HttpErrorWithResponse {
         http_error: reqwest::Error,
         response: serde_json::Value
     },
-    Deserialization(serde_json::Error)
+    #[error("deseralization error")]
+    Deserialization(#[from] serde_json::Error),
+    #[error("error converting from scryfall api model")]
+    ConversionFromScryfallApiModel(#[from] convert::ConversionError)
 }
+
 impl ScryfallError {
     pub fn raise_on_error(response: HttpResponse) -> Result<HttpResponse, ScryfallError> {
         let http_error = match response.error_for_status_ref() {
@@ -41,28 +49,4 @@ impl ScryfallError {
         Err(ScryfallError::HttpErrorWithResponse { http_error, response: json_value })
     }
 }
-
-impl std::fmt::Display for ScryfallError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ScryfallError::MaxRetries { times_tried, time_elapsed } => write!(f, "hit maximum retries while calling api. tried: {times_tried} attempts to acquire rate limit, {time_elapsed:?} has elapsed since the call began"),
-            ScryfallError::HttpError(e) => e.fmt(f),
-            ScryfallError::HttpErrorWithResponse { http_error, response } => write!(f, "{http_error}: {response}"),
-            ScryfallError::Deserialization(e) => write!(f, "failed to deserialize response from scryfall: {e}"),
-        }
-    }
-}
-impl std::error::Error for ScryfallError { }
-
-impl From<reqwest::Error> for ScryfallError {
-    fn from(e: reqwest::Error) -> Self {
-        ScryfallError::HttpError(e)
-    }
-}
-impl From<serde_json::Error> for ScryfallError {
-    fn from(e: serde_json::Error) -> Self {
-        ScryfallError::Deserialization(e)
-    }
-}
-
 

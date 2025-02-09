@@ -6,8 +6,7 @@ use reqwest::{blocking::RequestBuilder, header::{ACCEPT, USER_AGENT}};
 use serde::de::DeserializeOwned;
 
 use crate::{
-    collection::CardSource,
-    PROJECT_NAME
+    collection::CardSource, game, PROJECT_NAME
 };
 use crate::scryfall::{error::ScryfallError, types, convert};
 
@@ -66,6 +65,7 @@ impl RateLimiterExt for RateLimiter {
     }
 }
 
+/// Client for hitting scryfall's endpoints
 pub struct ScryfallClient {
     endpoint: String,
     http_client: HttpClient,
@@ -154,16 +154,17 @@ impl ScryfallClient {
 }
 
 impl CardSource for ScryfallClient {
-    fn get_cards_in_bulk(&mut self, card_names: Vec<String>) -> Result<Vec<crate::game::CardData>, Box<dyn std::error::Error>> {
+    fn retrieve_cards(&mut self, card_names: &[&str]) -> Result<Vec<game::CardData>, Box<dyn std::error::Error>> {
         let input = card_names
             .iter()
-            .map(String::as_str);
+            .map(|s| *s);
         let output = self.get_card_collection(input)?;
-        let card_data = output.data
+        let output = output.data
             .into_iter()
             .map(convert::convert_card)
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(card_data)
+
+        Ok(output)
     }
 }
 

@@ -1,13 +1,16 @@
 {
     "decklist": [
         {
-            "name": "<Basic Land>", "quantity": 43
+            "name": "Forest", "quantity": 23
         },
         {
-            "name": "<Ramp on 4>",  "quantity": 11
+            "name": "Mountain", "quantity": 20
         },
         {
-            "name": "<Other>",      "quantity": 45
+            "name": "Explosive Vegetation",  "quantity": 11
+        },
+        {
+            "name": "Colossal Dreadmaw",     "quantity": 45
         }
     ]
 }

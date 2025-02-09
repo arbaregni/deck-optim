@@ -1,23 +1,24 @@
 use std::fs::File;
-use std::io::{self, BufWriter, Write};
+use std::io;
 use std::io::Read;
+use std::io::Write;
 use std::path::PathBuf;
+use thiserror::Error;
 
-
-#[derive(Debug)]
+#[derive(Debug,Error)]
 pub enum ArgumentReadError {
-    FailedToOpenFile {
-        file_name: PathBuf,
-        cause: io::Error,
-    },
+    #[error("failed to open {} for reading: {source}", file_name.display())]
+    FailedToOpenFile { file_name: PathBuf, source: io::Error },
+    #[error("error while reading file {}: {source}", file_name.display())]
     ErrorWhileReadingFile {
         file_name: PathBuf,
-        cause: io::Error,
+        source: io::Error,
     },
     #[allow(dead_code)]
+    #[error("invalid json at {}: {source}", file_name.display())]
     InvalidJson {
         file_name: PathBuf,
-        cause: serde_json::Error,
+        source: serde_json::Error,
         report: String,
     }
 }
@@ -26,22 +27,22 @@ pub fn read_json_from_path<T>(path: &PathBuf) -> Result<T, ArgumentReadError>
 where T: serde::de::DeserializeOwned
 {
     let mut file = File::open(path)
-        .map_err(|cause| ArgumentReadError::FailedToOpenFile { 
+        .map_err(|source| ArgumentReadError::FailedToOpenFile { 
             file_name: path.clone(), 
-            cause
+            source
         })?;
     let mut buf = String::new();
     file.read_to_string(&mut buf)
-        .map_err(|cause| ArgumentReadError::ErrorWhileReadingFile { 
+        .map_err(|source| ArgumentReadError::ErrorWhileReadingFile { 
             file_name: path.clone(),
-            cause
+            source
         })?;
     let out = serde_json::from_str(&buf)
-        .map_err(|cause| {
-            let report = build_report_for_json_error(path, &cause, &buf);
+        .map_err(|source| {
+            let report = build_report_for_json_error(path, &source, &buf);
             ArgumentReadError::InvalidJson {
                 file_name: path.clone(),
-                cause,
+                source,
                 report
             }
         })?;
@@ -58,22 +59,6 @@ pub fn write_json_to_path<T: serde::ser::Serialize>(path: &PathBuf,  data: &T) -
     let bytes = serde_json::to_vec(data)?;
     file.write_all(&bytes)?;
     Ok(())
-}
-
-impl std::error::Error for ArgumentReadError { }
-
-impl std::fmt::Display for ArgumentReadError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use ArgumentReadError::*;
-        match self {
-            FailedToOpenFile { file_name, cause } => write!(f, "failed to open file {} for reading: {cause}", file_name.display()),
-            ErrorWhileReadingFile { file_name, cause } => write!(f, "failed to read file {}: {cause}", file_name.display()),
-            InvalidJson { file_name: _, cause: _, report } => {
-                write!(f, "{report}")
-                // write!(f, "failed to parse json from {}: {cause}", file_name.display())
-            }
-        }
-    }
 }
 
 fn build_report_for_json_error(file_name: &PathBuf, cause: &serde_json::Error, source: &str) -> String {
