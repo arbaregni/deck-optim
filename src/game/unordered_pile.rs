@@ -44,8 +44,9 @@ impl UnorderedPile {
     /// ```
     /// use deck_optim::game::card;
     /// use deck_optim::game::UnorderedPile;
+    /// use deck_optim::collection::get_sample_cards;
     ///
-    /// let cards = card::get_sample_cards(10);
+    /// let cards = get_sample_cards(10);
     /// let mut pile = UnorderedPile::from(cards.clone());
     ///
     /// // The card exists, so `remove` returns `true`

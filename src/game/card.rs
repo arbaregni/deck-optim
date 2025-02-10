@@ -28,28 +28,29 @@ pub enum CardType {
     Sorcery,
 }
 
-pub const PRODUCES_MANA_TAG: &'static str = "produces";
+pub const PRODUCES_MANA_TAG: &'static str = "core:Produces";
 
 impl Card {
 
+    // Get the mana produces by this card, as specified by the tag "core:Produces"
     pub fn produces_mana(self) -> Option<&'static ManaPool> {
-        let mut tag_values = self.annotations()
-            .filter(|a| a.key == PRODUCES_MANA_TAG);
+        let tag = self.annotations()
+            .get(PRODUCES_MANA_TAG)?;
 
-        let tag = tag_values.next()?;
-
-        if let Some(next_tag) = tag_values.next() {
-            log::warn!("multiple tags with key {PRODUCES_MANA_TAG} found on {self:?}. the first ({tag:?}) will be used; ({next_tag:?}) and any others will be ignored");
-        }
-
-        match tag.value.as_ref() {
-            Some(AnnotationValue::Mana(mana_pool)) => Some(mana_pool),
-            Some(value) => {
-                log::warn!("tag with key {PRODUCES_MANA_TAG} should use a mana value, instead it is {value:?}. will be ignored");
+        match tag.values() {
+            [] => None,
+            [AnnotationValue::Mana(mana)] => Some(mana),
+            [val] => {
+                log::warn!("tag with {PRODUCES_MANA_TAG} should have type Mana, instead found: {val:?}. This will be ignored");
                 None
             }
-            None => None
+            [..] => {
+                log::warn!("tag with {PRODUCES_MANA_TAG} should have a single value, found {} instead. This will be ignored", tag.values().len());
+                None
+            }
         }
+
+
     }
 
 

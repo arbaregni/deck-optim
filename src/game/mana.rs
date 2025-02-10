@@ -4,7 +4,7 @@ use regex::Regex;
 
 /// Represents an amount of mana somewhere.
 /// In a cost, producer, or in the player's mana pool.
-#[derive(Debug,Clone,PartialEq,Eq)]
+#[derive(Debug,Clone,PartialEq,Eq,PartialOrd,Ord)]
 pub struct ManaPool {
     pub white: u8,
     pub blue: u8,

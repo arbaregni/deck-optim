@@ -1,12 +1,17 @@
 use std::collections::HashMap;
 
-use crate::game::{annotations::{Annotation, AnnotationTarget, CardAnnotations}, CardData};
+use crate::game::CardData;
+use crate::game::annotations::{
+    AnnotationSet,
+    AnnotationTarget,
+    CardAnnotations,
+};
 
 #[derive(Clone,Debug)]
 pub struct CardCollection {
     cards: Vec<CardData>,
     name_lookup: HashMap<String, Card>,
-    annotations: HashMap<Card, Vec<Annotation>>,
+    annotations: HashMap<Card, AnnotationSet>,
 }
 
 impl CardCollection {
@@ -72,14 +77,13 @@ impl CardCollection {
                     };
                     self.annotations.entry(card)
                         .or_default()
-                        .push(annotation.clone());
+                        .insert(annotation.clone());
                 }
             });
     }
-    pub fn get_annotations(&self, card: Card) -> &[Annotation] {
-        const EMPTY: &'static [Annotation] = &[];
+    pub fn get_annotations(&self, card: Card) -> &AnnotationSet {
+        const EMPTY: &'static AnnotationSet = &AnnotationSet::empty();
         self.annotations.get(&card)
-            .map(Vec::as_slice)
             .unwrap_or(EMPTY)
     }
 }
@@ -154,11 +158,11 @@ impl Card {
     pub fn data(self) -> &'static CardData {
         global_collection::get_card_data(self).expect("card collection initialized")
     }
-    pub fn annotations(self) -> impl Iterator<Item = &'static Annotation> {
-        global_collection::get_card_annotations(self).expect("card collection initialized").iter()
+    pub fn annotations(self) -> &'static AnnotationSet {
+        global_collection::get_card_annotations(self).expect("card collection initialized")
     }
     pub fn has_annotation(self, key: &str) -> bool {
-        self.annotations().any(|a| a.key == key)
+        self.annotations().get(key).is_some()
     }
 }
 
@@ -183,7 +187,7 @@ mod global_collection {
     }
 
     /// Retrieves the card annotations from a globally initialzied card collection
-    pub fn get_card_annotations(card: Card) -> Result<&'static [Annotation], CardNotFoundError> {
+    pub fn get_card_annotations(card: Card) -> Result<&'static AnnotationSet, CardNotFoundError> {
         let col = CARD_COLLECTION.get()
             .ok_or_else(|| CardNotFoundError::NotInitialized { card })?;
         let annot = col.get_annotations(card);

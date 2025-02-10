@@ -3,16 +3,16 @@
         {
             "targets": ["Mountain"],
             "key": "produces",
-            "value": {
+            "values": [{
                 "Mana": "{R}"
-            }
+            }]
         },
         {
             "targets": ["Forest"],
             "key": "produces",
-            "value": { 
+            "values": [{ 
                 "Mana": "{G}"
-            }
+            }]
         }
     ]
 }
