@@ -4,10 +4,11 @@ pub mod watcher;
 pub mod strategies;
 pub mod metrics;
 pub mod deck;
-pub mod collection;
 pub mod experiment;
 
-pub mod card_cache;
+pub mod collection;
+pub use collection::card_cache;
+
 pub mod scryfall;
 
 pub mod file_utils;

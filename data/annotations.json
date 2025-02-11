@@ -2,14 +2,14 @@
     "annotations": [
         {
             "targets": ["Mountain"],
-            "key": "produces",
+            "key": "core:Produces",
             "values": [{
                 "Mana": "{R}"
             }]
         },
         {
             "targets": ["Forest"],
-            "key": "produces",
+            "key": "core:Produces",
             "values": [{ 
                 "Mana": "{G}"
             }]

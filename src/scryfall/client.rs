@@ -153,6 +153,11 @@ impl ScryfallClient {
     }
 }
 
+impl std::fmt::Debug for ScryfallClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(Scryfall Client at {})", self.endpoint)
+    }
+}
 impl CardSource for ScryfallClient {
     fn retrieve_cards(&mut self, card_names: &[&str]) -> Result<Vec<game::CardData>, Box<dyn std::error::Error>> {
         let input = card_names

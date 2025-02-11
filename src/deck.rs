@@ -37,7 +37,9 @@ impl DeckList {
                 num_missing += 1;
                 continue
             };
-            cards.push(card);
+            for _ in 0..da.quantity() {
+                cards.push(card);
+            }
         }
         if num_missing > 0 {
             return Err(DeckConstructionError::MissingCards { num_missing })
@@ -59,3 +61,90 @@ pub enum DeckConstructionError {
     #[error("unable to construct deck - unable to find {num_missing} cards")]
     MissingCards { num_missing: usize }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::collection::CardCollection;
+    use crate::game::CardData;
+    use crate::game::CardType;
+    use crate::game::ManaPool;
+
+
+    fn mock_collection() -> CardCollection {
+        let cards = vec![
+            CardData {
+                name: "Hill Giant".to_string(),
+                card_type: CardType::Creature,
+                cost: Some(ManaPool::try_parse("{3}{R}").expect("mana cost"))
+            },
+            CardData {
+                name: "Lightning Bolt".to_string(),
+                card_type: CardType::Instant,
+                cost: Some(ManaPool::try_parse("{R}").expect("mana cost"))
+            },
+            CardData {
+                name: "Island".to_string(),
+                card_type: CardType::Land,
+                cost: None,
+            },
+        ];
+        CardCollection::from_card_data(cards)
+    }
+
+    #[test]
+    fn test_count_cards() {
+        let decklist = DeckList {
+            decklist: vec![
+                DeckAllocation { name: "Fireball".to_string(), quantity: 3 },
+                DeckAllocation { name: "Lightning Bolt".to_string(), quantity: 2 },
+            ],
+        };
+        assert_eq!(decklist.count(), 5);
+    }
+
+    #[test]
+    fn test_card_names() {
+        let decklist = DeckList {
+            decklist: vec![
+                DeckAllocation { name: "Fireball".to_string(), quantity: 3 },
+                DeckAllocation { name: "Lightning Bolt".to_string(), quantity: 2 },
+            ],
+        };
+        let mut names = decklist.card_names();
+        names.sort();
+        assert_eq!(names, vec!["Fireball", "Lightning Bolt"]);
+    }
+
+    #[test]
+    fn test_into_deck_success() {
+        let collection = mock_collection();
+        let decklist = DeckList {
+            decklist: vec![
+                DeckAllocation { name: "Hill Giant".to_string(), quantity: 2 },
+                DeckAllocation { name: "Lightning Bolt".to_string(), quantity: 1 },
+            ],
+        };
+        let deck = decklist.into_deck(&collection).unwrap();
+        assert_eq!(deck.size(), 3);
+    }
+
+    #[test]
+    fn test_into_deck_missing_cards() {
+        let collection = mock_collection();
+        let decklist = DeckList {
+            decklist: vec![
+                DeckAllocation { name: "Lightning Bolt".to_string(), quantity: 2 },
+                DeckAllocation { name: "Nonexistent Card".to_string(), quantity: 1 },
+            ],
+        };
+        let result = decklist.into_deck(&collection);
+        let err = result.expect_err("should fail");
+        match err {
+            DeckConstructionError::MissingCards { num_missing } => {
+                assert_eq!(num_missing, 1);
+            }
+        }
+    }
+}
+    

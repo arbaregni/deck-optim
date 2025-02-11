@@ -8,7 +8,7 @@ use deck_optim::game::Deck;
 use deck_optim::scryfall::ScryfallClient;
 use deck_optim::deck::DeckList;
 use deck_optim::strategies::StrategyImpl;
-use deck_optim::trial::run_trials;
+use deck_optim::trial;
 use directories::ProjectDirs;
 use itertools::Itertools;
 use prettytable::{row, Table};
@@ -37,6 +37,9 @@ pub struct Cli {
 
     #[arg(short='t', long)]
     pub num_trials: Option<u32>,
+
+    #[arg(long)]
+    pub max_turns: Option<u32>,
 
     #[arg(long)]
     /// Supply this parameter to change the default level filters
@@ -73,8 +76,6 @@ pub fn project_dirs() -> Result<ProjectDirs> {
         })
 }
 
-const DEFAULT_NUM_TRIALS: u32 = 10000; 
-
 fn make_table() -> Table {
     let mut table = Table::new();
     table.set_format(*prettytable::format::consts::FORMAT_BOX_CHARS);
@@ -97,13 +98,17 @@ fn report_metrics_data(_cli: &Cli, metrics: &MetricsData) -> Result<()> {
     Ok(())
 }
 
-fn evaluate_deck(cli: &Cli, num_trials: u32, deck: Deck) -> MetricsData {
+fn evaluate_deck(cli: &Cli, deck: Deck) -> MetricsData {
     let watcher = WatcherImpl;
     let strategies = StrategyImpl {
         rng: rand::rngs::StdRng::from_entropy()
     };
 
-    let metrics = run_trials(num_trials, deck, strategies, watcher);
+    let props = trial::Props {
+        num_trials: cli.num_trials.unwrap_or(10_000),
+        max_turn: cli.max_turns.unwrap_or(50),
+    };
+    let metrics = trial::run_trials(deck, strategies, watcher, props);
     
     report_metrics_data(&cli, &metrics)
         .handle_err(|e| log::error!("failed to report metrics data: {e}"));
@@ -127,7 +132,6 @@ fn load_card_data(scenario: Vec<&str>, cli: &Cli, card_cache: &mut LocalCardCach
     }
 
     log::info!("found {} total cards", cards.num_cards());
-    log::debug!("loaded cards: {cards:#?}");
 
     log::info!("writing back to cache...");
     card_cache.save(cards.all_card_data());
@@ -139,6 +143,8 @@ fn load_card_data(scenario: Vec<&str>, cli: &Cli, card_cache: &mut LocalCardCach
 
         cards.apply_annotations(card_annotations);
     }
+
+    log::debug!("loaded cards: {cards:#?}");
 
     Ok(cards)
 }
@@ -163,8 +169,7 @@ fn run(cli: Cli) -> Result<()> {
 
     // do the trial
 
-    let num_trials = cli.num_trials.unwrap_or(DEFAULT_NUM_TRIALS);
-    let metrics = evaluate_deck(&cli, num_trials, deck);
+    let metrics = evaluate_deck(&cli, deck);
 
     report_metrics_data(&cli, &metrics)?;
 

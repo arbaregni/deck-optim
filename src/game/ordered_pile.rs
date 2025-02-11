@@ -19,6 +19,11 @@ impl OrderedPile {
     pub fn draw(&mut self) -> Option<Card> {
         self.cards.pop()
     }
+    pub fn iter(&self) -> impl Iterator<Item = Card> + '_ {
+        self.cards
+            .iter()
+            .copied()
+    }
     pub fn draw_n(&mut self, n: usize) -> Vec<Card> {
         let mut hand = Vec::with_capacity(n);
         for _ in 0..n {
@@ -35,10 +40,6 @@ impl OrderedPile {
     pub fn shuffle<R: Rng>(&mut self, rng: &mut R) {
         use rand::seq::SliceRandom;
         self.cards.shuffle(rng)
-    }
-    pub fn shuffled<R: Rng>(mut self, rng: &mut R) -> Self {
-        self.shuffle(rng);
-        self
     }
 }
 

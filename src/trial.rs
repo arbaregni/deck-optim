@@ -1,5 +1,6 @@
 use rand::SeedableRng;
 
+use crate::game::CardType;
 use crate::game::Library;
 use crate::game::Hand;
 use crate::game::state::State;
@@ -11,16 +12,33 @@ use crate::metrics::MetricsData;
 pub type Rand = rand::rngs::StdRng;
 
 
-const MAX_TURN: u32 = 50;
+#[derive(Debug,Clone,Copy)]
+pub struct Props {
+    pub max_turn: u32,
+    pub num_trials: u32,
+}
+impl Default for Props {
+    fn default() -> Self {
+        Self {
+            max_turn: 50,
+            num_trials: 1000,
+        }
+    }
+}
 
+/// Work needed for a particular run
 pub struct Trial {
     pub rng: Rand,
     pub state: State,
     pub metrics: MetricsData,
+    pub props: Props
 }
 
 impl Trial {
-    pub fn new(deck: UnorderedPile, mut rng: Rand) -> Self {
+    pub fn new(deck: UnorderedPile, rng: Rand) -> Self {
+        Self::from_props(deck, rng, Props::default())
+    }
+    pub fn from_props(deck: UnorderedPile, mut rng: Rand, props: Props) -> Self {
         let state = State::new(
             deck,
             &mut rng
@@ -28,7 +46,8 @@ impl Trial {
         Trial {
             rng,
             state,
-            metrics: MetricsData::empty()
+            metrics: MetricsData::empty(),
+            props,
         }
     }
     pub fn library(&self) -> &Library {
@@ -67,7 +86,7 @@ impl Trial {
         
         watcher.opening_hand(&self.state, &mut self.metrics);
 
-        while self.turn() <= MAX_TURN && !self.state.game_loss {
+        while self.turn() <= self.props.max_turn && !self.state.game_loss {
             let draw = self.turn() > 0 || self.state.draw_on_first_turn;
             if draw {
                 self.state.draw_to_hand();
@@ -97,21 +116,22 @@ impl Trial {
 
 }
 
-pub fn run_trials<S, W>(num_trials: u32, deck: UnorderedPile, strategies: S, watcher: W) -> MetricsData
+pub fn run_trials<S, W>(deck: UnorderedPile, strategies: S, watcher: W, props: Props) -> MetricsData
 where S: Strategy + Clone + Sync,
       W: Watcher + Clone + Sync 
 {
     use rayon::iter::IntoParallelIterator;
     use rayon::iter::ParallelIterator;
 
-    (0..num_trials)
+    (0..props.num_trials)
         .into_iter()
         .into_par_iter()
         .map(|_| {
             let rng = rand::rngs::StdRng::from_entropy();
-            let t = Trial::new(
+            let t = Trial::from_props(
                 deck.clone(),
                 rng,
+                props
             );
             t.run(&mut strategies.clone(), &watcher)
         })

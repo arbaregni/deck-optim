@@ -32,11 +32,7 @@ impl Strategy for StrategyImpl {
     }
 
     fn card_plays(&mut self, state: &State) -> Vec<Card> { 
-        let available_mana = state.lands
-            .iter()
-            .filter_map(|c| c.produces_mana())
-            .cloned()
-            .sum();
+        let available_mana = state.available_mana();
         let potential_plays = state.hand.iter().collect_vec();
         card_play_strategies::naive_greedy(available_mana, potential_plays)
     }

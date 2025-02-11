@@ -5,7 +5,7 @@ use crate::collection::Card;
 
 use super::OrderedPile;
 
-#[derive(Clone)]
+#[derive(Debug,Clone)]
 pub struct UnorderedPile {
     // a deck is some number of copies of every card / card archetype
     cards: Vec<Card>,

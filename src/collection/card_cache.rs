@@ -26,7 +26,7 @@ impl LocalCardCache {
 
 impl CardSource for LocalCardCache {
     fn retrieve_cards(&mut self, card_names: &[&str]) -> Result<Vec<CardData>, Box<dyn std::error::Error>> {
-        log::info!("opening card cache at {}", self.file_path.display());
+        log::debug!("opening card cache at {}", self.file_path.display());
 
         let mut cards: Vec<CardData> = file_utils::read_json_from_path(&self.file_path)
             .unwrap_or_else(|e| {
@@ -34,7 +34,7 @@ impl CardSource for LocalCardCache {
                 Vec::new()
             });
 
-        log::info!("read {} cards from cache", cards.len());
+        log::debug!("read {} cards from cache", cards.len());
         cards.retain(|card| card_names.contains(&card.name.as_str()));
 
         Ok(cards)
@@ -42,6 +42,11 @@ impl CardSource for LocalCardCache {
     }
 }
 
+impl fmt::Debug for LocalCardCache {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(Local Cache at {})", self.file_path.display())
+    }
+}
 impl fmt::Display for LocalCardCache {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.file_path.display())
