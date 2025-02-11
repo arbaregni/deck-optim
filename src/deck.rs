@@ -68,7 +68,7 @@ mod tests {
     use crate::collection::CardCollection;
     use crate::game::CardData;
     use crate::game::CardType;
-    use crate::game::ManaPool;
+    use crate::game::ManaCost;
 
 
     fn mock_collection() -> CardCollection {
@@ -76,12 +76,12 @@ mod tests {
             CardData {
                 name: "Hill Giant".to_string(),
                 card_type: CardType::Creature,
-                cost: Some(ManaPool::try_parse("{3}{R}").expect("mana cost"))
+                cost: Some(ManaCost::try_parse("{3}{R}").expect("mana cost"))
             },
             CardData {
                 name: "Lightning Bolt".to_string(),
                 card_type: CardType::Instant,
-                cost: Some(ManaPool::try_parse("{R}").expect("mana cost"))
+                cost: Some(ManaCost::try_parse("{R}").expect("mana cost"))
             },
             CardData {
                 name: "Island".to_string(),

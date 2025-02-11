@@ -1,6 +1,5 @@
 use rand::SeedableRng;
 
-use crate::game::CardType;
 use crate::game::Library;
 use crate::game::Hand;
 use crate::game::state::State;
@@ -10,7 +9,6 @@ use crate::watcher::Watcher;
 use crate::metrics::MetricsData;
 
 pub type Rand = rand::rngs::StdRng;
-
 
 #[derive(Debug,Clone,Copy)]
 pub struct Props {
@@ -86,8 +84,9 @@ impl Trial {
         
         watcher.opening_hand(&self.state, &mut self.metrics);
 
+        self.state.turn = 1;
         while self.turn() <= self.props.max_turn && !self.state.game_loss {
-            let draw = self.turn() > 0 || self.state.draw_on_first_turn;
+            let draw = self.turn() > 1 || self.state.draw_on_first_turn;
             if draw {
                 self.state.draw_to_hand();
             }
@@ -98,8 +97,8 @@ impl Trial {
                 self.state.play_card(land_drop);
             }
 
-            for card_play in strategies.card_plays(&self.state) {
-                log::debug!("playing card: {card_play:?}");
+            for (card_play, payment) in strategies.card_plays(&self.state) {
+                log::debug!("playing card: {card_play:?} using {payment}");
                 watcher.card_play(card_play, &self.state, &mut self.metrics);
                 self.state.play_card(card_play);
             }

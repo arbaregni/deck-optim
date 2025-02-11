@@ -8,7 +8,7 @@ use crate::game::{
     Hand, Library, UnorderedPile
 };
 
-use super::ManaPool;
+use super::{ManaCost, ManaPool};
 
 
 const PROB_OF_GOING_FIRST: f64 = 0.5;
@@ -99,7 +99,7 @@ impl State {
                 self.graveyard.add(card);
             }
             CardType::Creature => {
-                todo!()
+                // todo
             }
         }
     }

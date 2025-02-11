@@ -5,13 +5,14 @@ use crate::collection::Card;
 use crate::game::card::CardType;
 use crate::game::state::State;
 use crate::game::unordered_pile::UnorderedPile;
+use crate::game::ManaPool;
 use crate::trial::Rand;
 
 #[allow(unused)]
 pub trait Strategy {
     fn mulligan_hand(&mut self, state: &State) -> bool { false }
     fn land_drop(&mut self, state: &State) -> Option<Card> { None }
-    fn card_plays(&mut self, state: &State) -> Vec<Card> { vec![] }
+    fn card_plays(&mut self, state: &State) -> Vec<(Card, ManaPool)> { vec![] }
 }
 
 #[derive(Clone)]
@@ -23,18 +24,21 @@ pub struct StrategyImpl {
     pub rng: Rand
 }
 impl Strategy for StrategyImpl {
-    fn mulligan_hand(&mut self, _state: &State) -> bool { 
-        false
+    fn mulligan_hand(&mut self, state: &State) -> bool { 
+        mulligan_strategies::between_3_and_4_lands(state)
     }
 
     fn land_drop(&mut self, state: &State) -> Option<Card> {
         land_drop_strategies::random_land(&mut self.rng, state)
     }
 
-    fn card_plays(&mut self, state: &State) -> Vec<Card> { 
+    fn card_plays(&mut self, state: &State) -> Vec<(Card, ManaPool)> { 
         let available_mana = state.available_mana();
         let potential_plays = state.hand.iter().collect_vec();
-        card_play_strategies::naive_greedy(available_mana, potential_plays)
+        card_play_strategies::naive_greedy(available_mana, potential_plays, |card| {
+            let cost = card.data().cost.unwrap_or_default();
+            cost.mana_value() as u32
+        })
     }
 }
 
@@ -48,7 +52,7 @@ mod mulligan_strategies {
             return false;
         }
         let land_count = state.num_lands_in_hand();
-        let good = 3 <= land_count && land_count <= 4;
+        let good = 3 <= land_count && land_count <= 5;
         log::debug!("saw hand with {} cards and {land_count} lands, on mulligan #{}, good={good}", state.hand.size(), state.num_mulligans_taken);
 
         !good
@@ -70,42 +74,34 @@ mod card_play_strategies {
 
     use super::*;
 
-    pub fn naive_greedy(mut available_mana: ManaPool, mut legal_plays: Vec<Card>) -> Vec<Card> {
+    pub fn naive_greedy<F: FnMut(Card) -> u32>(mut available_mana: ManaPool, mut legal_plays: Vec<Card>, mut utility: F) -> Vec<(Card, ManaPool)> {
         let mut plays = vec![];
 
         loop {
-            log::debug!("in naive greedy algorithm, available mana: {available_mana:?}");
+            log::debug!("in naive greedy algorithm, available mana: {available_mana}");
             log::debug!("legal plays before filtering: {}", legal_plays.len());
-            // filter down what we can play based on available mana
-            legal_plays.retain(|card| {
-                match card.data().cost.as_ref() {
-                    Some(cost) => {
-                        let ok = available_mana.try_subtract(&cost).is_some();
-                        log::debug!(" ok to play {card:?}: {ok}");
-                        ok
-                    }
-                    None => {
-                        log::debug!(" can't cast {card:?}, no mana cost");
-                        false
-                    }
-                }
-            });
-            log::debug!("legal plays after filtering: {}", legal_plays.len());
+            // filter pick the best thing to play first
+            legal_plays.sort_by_key(|card| utility(*card));
             // pick a card to play
             let Some(candidate) = legal_plays.pop() else {
                 log::debug!("can't pick a card to play, returnning");
                 break;
             };
             let Some(mana_cost) = candidate.data().cost.clone() else {
-                log::warn!("tried to cast {candidate:?} without a cost, skipping");
+                log::debug!("tried to cast {candidate:?} without a cost, skipping");
                 continue;
             };
-            let Some(remaining_mana) = available_mana.try_subtract(&mana_cost) else {
+            let mut payment_options = available_mana.payment_methods_for(mana_cost);
+            let Some(payment) = payment_options.next() else {
+                log::debug!("no ways to pay for {mana_cost}, skipping");
+                continue;
+            };
+            let Some(remaining_mana) = available_mana - payment else {
                 log::warn!("tried to cast {candidate:?}, did not have enough available mana");
                 continue;
             };
             available_mana = remaining_mana;
-            plays.push(candidate);
+            plays.push((candidate, payment));
         }
 
         plays

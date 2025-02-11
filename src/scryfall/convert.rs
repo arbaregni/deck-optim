@@ -9,20 +9,20 @@ pub enum ConversionError {
     #[error("could not convert type line: `{card_type}` is unknown")]
     UnknownCardType { card_type: String },
     #[error("could not parse mana cost: `{mana_cost}` due to `{source}`")]
-    CannotParseManaCost { mana_cost: String, source: game::ManaPoolParseError },
+    CannotParseManaCost { mana_cost: String, source: game::ManaParseError },
     #[error("too many separators found in type line")]
     TooManySeparators {},
     #[error("this combination of card types is not supported yet")]
     UnsupportedCardTypeCombination { card_types: Vec<game::CardType> }
 }
 
-pub fn convert_mana_cost(mana_cost: String) -> Result<Option<game::ManaPool>, ConversionError> {
+pub fn convert_mana_cost(mana_cost: String) -> Result<Option<game::ManaCost>, ConversionError> {
     if mana_cost == "" {
         // empty mana cost means there is no mana cost
         return Ok(None);
     }
 
-    let cost = game::ManaPool::try_parse(mana_cost.as_str())
+    let cost = game::ManaCost::try_parse(mana_cost.as_str())
         .map_err(|source| ConversionError::CannotParseManaCost {
             mana_cost, source
         })?;
@@ -99,7 +99,7 @@ pub fn convert_card(card: types::CardData) -> Result<game::CardData, ConversionE
 
 #[cfg(test)]
 mod tests {
-    use game::ManaPool;
+    use game::mana::{ManaCost, ManaPool};
 
     use super::*;
 
@@ -114,7 +114,7 @@ mod tests {
     fn test_convert_zero_mana_cost() {
         let source = "{0}";
         let mana_cost = convert_mana_cost(source.to_string()).expect("no errors");
-        let expected = ManaPool::empty();
+        let expected = ManaCost::empty();
         assert_eq!(Some(expected), mana_cost);
     }
 
@@ -122,11 +122,13 @@ mod tests {
     fn test_convert_mana_cost() {
         let source = "{3}{R}{G}";
         let mana_cost = convert_mana_cost(source.to_string()).expect("no errors");
-        let expected = ManaPool { 
-            red: 1,
-            green: 1,
+        let expected = ManaCost { 
+            colors: ManaPool {
+                red: 1,
+                green: 1,
+                ..Default::default()
+            },
             generic: 3,
-            ..Default::default()
         };
         assert_eq!(Some(expected), mana_cost);
     }

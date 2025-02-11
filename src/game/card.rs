@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{collection::Card, game::mana::ManaPool};
+use crate::collection::Card;
+use crate::game::mana::ManaCost;
+use crate::game::mana::ManaPool;
 
 use super::annotations::AnnotationValue;
 
@@ -9,7 +11,7 @@ use super::annotations::AnnotationValue;
 pub struct CardData {
     pub name: String,
     pub card_type: CardType,
-    pub cost: Option<ManaPool>,
+    pub cost: Option<ManaCost>,
 }
 
 #[derive(Clone,Debug,Serialize,Deserialize,Eq,PartialEq)]
@@ -31,8 +33,12 @@ pub enum CardType {
 pub const PRODUCES_MANA_TAG: &'static str = "core:Produces";
 
 impl Card {
+    /// Get the name of the card
+    pub fn name(self) -> &'static str {
+        self.data().name.as_str()
+    }
 
-    // Get the mana produces by this card, as specified by the tag "core:Produces"
+    /// Get the mana produces by this card, as specified by the tag "core:Produces"
     pub fn produces_mana(self) -> Option<&'static ManaPool> {
         let tag = self.annotations()
             .get(PRODUCES_MANA_TAG)?;

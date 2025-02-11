@@ -1,4 +1,4 @@
-use crate::metrics::MetricsData;
+use crate::metrics::{MetricsData, MetricsKey};
 use crate::collection::Card;
 use crate::game::state::State;
 
@@ -30,12 +30,23 @@ impl Watcher for WatcherImpl {
     fn card_play(&self, card_play: Card, state: &State, metrics: &mut MetricsData) {
         metrics.add("card-plays");
 
-        metrics.set(("turn-played", card_play), state.turn);
+        metrics.set(
+            MetricsKey::from("turn-played").card(card_play),
+            state.turn
+        );
 
         if metrics.get("card-plays") == 7 {
             metrics.add_count("turn-to-reach-7-plays", state.turn);
         }
 
+    }
+
+    fn turn_end(&self, state: &State, metrics: &mut MetricsData) {
+        let land_count = state.num_lands_in_play() as u32;
+        metrics.set(
+            MetricsKey::from("lands_on_turn").turn_num(state.turn),
+            land_count
+        );
     }
 
     fn game_end(&self, state: &State, metrics: &mut MetricsData) {

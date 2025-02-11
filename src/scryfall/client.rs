@@ -86,7 +86,7 @@ impl ScryfallClient {
         // must acquire the rate limit
         self.rate_limiter.acquire()?;
         // user agent and accept headers are required:
-        //  https://scryfall.com/docs/api
+        //  see: <https://scryfall.com/docs/api>
         let request = builder(&mut self.http_client)
             .header(USER_AGENT, PROJECT_NAME)
             .header(ACCEPT, "application/json");
@@ -102,7 +102,7 @@ impl ScryfallClient {
         Ok(output)
     }
 
-    /// Make an API request to https://scryfall.com/docs/api/cards/named
+    /// Make an API request to <https://scryfall.com/docs/api/cards/named>
     pub fn get_card_named(&mut self, card_name: &str) -> Result<types::CardCollectionResponse, ScryfallError> {
         let url = format!("{}/cards/named", self.endpoint);
 
@@ -114,7 +114,7 @@ impl ScryfallClient {
         Ok(data)
     }
 
-    /// Make an API request to https://scryfall.com/docs/api/cards/collection
+    /// Make an API request to <https://scryfall.com/docs/api/cards/collection>
     pub fn get_card_collection<'a, I: IntoIterator<Item=&'a str>>(&mut self, card_names: I) -> Result<types::CardCollectionResponse, ScryfallError> {
         use types::CardIdentifier;
         use types::CardCollectionResponse;

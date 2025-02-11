@@ -1,39 +1,51 @@
-use crate::collection::Card;
-
+use std::fmt;
 use std::collections::HashMap;
+
+use crate::collection::Card;
 
 pub type Uint = u32;
 
 #[derive(Debug,Copy,Clone,Eq,PartialEq,Hash,PartialOrd,Ord)]
 pub struct MetricsKey {
     metrics_name: &'static str,
-    card_name: Option<&'static str>,
+    card: Option<Card>,
+    turn_num: Option<u32>
+}
+impl MetricsKey {
+    pub fn new(metrics_name: &'static str) -> Self {
+        Self {
+            metrics_name,
+            card: None,
+            turn_num: None,
+        }
+    }
+    pub fn card(mut self, card: Card) -> Self {
+        self.card = Some(card);
+        self
+    }
+    pub fn turn_num(mut self, turn_num: u32) -> Self {
+        self.turn_num = Some(turn_num);
+        self
+    }
 }
 
 impl From<&'static str> for MetricsKey {
     fn from(name: &'static str) -> Self {
-        MetricsKey {
-            metrics_name: name,
-            card_name: None,
-        }
-    }
-}
-impl From<(&'static str, Card)> for MetricsKey {
-    fn from(value: (&'static str, Card)) -> Self {
-        let (name, card) = value;
-        MetricsKey {
-            metrics_name: name,
-            card_name: Some(card.data().name.as_str())
-        }
+        MetricsKey::new(name)
     }
 }
 
-impl ToString for MetricsKey {
-    fn to_string(&self) -> String {
-        match self.card_name {
-            Some(card) => format!("{}::{}", self.metrics_name, card),
-            None => format!("{}", self.metrics_name),
+impl fmt::Display for MetricsKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.metrics_name)?;
+        if let Some(x) = self.card {
+            write!(f, "::{}", x.name())?;
         }
+        if let Some(x) = self.turn_num {
+            write!(f, "::{x}")?;
+        }
+
+        Ok(())
     }
 }
 
@@ -42,8 +54,6 @@ pub struct MetricsData {
     pub(crate) trials_seen: Uint,
     metrics: HashMap<MetricsKey, Uint>,
 }
-
-
 
 impl MetricsData {
     /// Creates an empty metrics data.
