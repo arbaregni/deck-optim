@@ -1,4 +1,9 @@
 {
+    "command_zone": [
+        {
+            "name": "Ruby, Daring Tracker", "quantity": 1
+        }
+    ],
     "decklist": [
         {
             "name": "Forest", "quantity": 23
@@ -7,7 +12,7 @@
             "name": "Mountain", "quantity": 20
         },
         {
-            "name": "Explosive Vegetation",  "quantity": 11
+            "name": "Sisay's Ring",  "quantity": 11
         },
         {
             "name": "Colossal Dreadmaw",     "quantity": 45

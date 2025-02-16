@@ -142,7 +142,6 @@ impl ManaCost {
 
 }
 
-
 impl std::ops::Add for ManaCost {
     type Output = ManaCost;
 
@@ -170,7 +169,16 @@ impl fmt::Display for ManaCost {
         
         let generic = self.generic;
         if generic > 0 { write!(f, "{{{generic}}}")?; }
-        write!(f, "{}", self.colors)?;
+        for _ in 0..self.colors.white     { write!(f, "{{W}}")?; }
+        for _ in 0..self.colors.blue      { write!(f, "{{U}}")?; }
+        for _ in 0..self.colors.black     { write!(f, "{{B}}")?; }
+        for _ in 0..self.colors.red       { write!(f, "{{R}}")?; }
+        for _ in 0..self.colors.green     { write!(f, "{{G}}")?; }
+        for _ in 0..self.colors.colorless { write!(f, "{{C}}")?; }
+
+        if self.mana_value() ==  0 {
+            write!(f, "{{0}}")?;
+        }
 
         Ok(())
     }

@@ -34,7 +34,6 @@ pub struct State {
     pub hand: Hand,
     
     // Battle field
-    pub lands: UnorderedPile,
     pub permanents: UnorderedPile,
 
     // Graveyard
@@ -47,7 +46,6 @@ impl State {
         State {
             library: deck.to_ordered(rng),
             hand: Hand::empty(),
-            lands: UnorderedPile::empty(),
             permanents: UnorderedPile::empty(),
             graveyard: UnorderedPile::empty(),
             turn: 0,
@@ -85,21 +83,16 @@ impl State {
     }
 
     pub fn play_card(&mut self, card: Card) {
-        if !self.hand.remove(card) {
-            log::error!("attempting to play card that is not present in hand");
-            return;
-        };
-
-        match card.data().card_type {
-            CardType::Land => {
-                self.turn_state.land_drops_made += 1;
-                self.lands.add(card);
-            }
+         match card.data().card_type {
             CardType::Instant  | CardType::Sorcery => {
                 self.graveyard.add(card);
             }
-            CardType::Creature => {
-                // todo
+            CardType::Land => {
+                self.turn_state.land_drops_made += 1;
+                self.permanents.add(card);
+            }
+            _ => {
+                self.permanents.add(card);
             }
         }
     }
@@ -114,30 +107,16 @@ impl State {
     pub fn legal_card_plays(&self) -> impl Iterator<Item = Card> + '_ {
         self.hand
             .iter()
-            .filter(|c| match c.data().card_type {
-                // we can only play a land if we haven't used all our land drops yet
-                CardType::Land => self.turn_state.land_drops_made < self.max_land_drops_per_turn,
-
-                _ if c.data().cost.is_some() => {
-                    // TODO: fix this hack
-                    let mv = c.data().cost.as_ref().expect("just checked").mana_value() as usize;
-                    let available_mana = self.lands.size() - self.turn_state.tapped.size();
-                    mv <= available_mana
-                }
-
-                _ => {
-                    log::error!("could not determine if playing card {c:?} was legal, with name {}", c.data().name);
-                    false
-                }
-            })
+            // todo: some enforcement here, before we go into
     }
     pub fn available_mana(&self) -> ManaPool {
-        self.lands
+        self.permanents
             .iter()
             .filter_map(|c| c.produces_mana())
             .cloned()
             .sum()
     }
+
     pub fn num_lands_in_hand(&self) -> usize {
         self.hand
             .iter()
@@ -146,7 +125,10 @@ impl State {
     }
 
     pub fn num_lands_in_play(&self) -> usize {
-        self.lands.size()
+        self.permanents
+            .iter()
+            .filter(|c| c.data().card_type == CardType::Land)
+            .count()
     }
 }
 

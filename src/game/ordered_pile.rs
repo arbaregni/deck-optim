@@ -10,20 +10,33 @@ pub struct OrderedPile {
 }
 
 impl OrderedPile {
+    /// Creates an empty pile.
+    ///
+    /// # Example
+    /// ```
+    /// use deck_optim::game::OrderedPile;
+    ///
+    /// let deck = OrderedPile::empty();
+    /// assert_eq!(deck.size(), 0);
+    /// ```
     pub fn empty() -> Self {
         Self { cards: vec![] } 
     }
+    /// Creates an [`OrderedPile`] from a vector of cards
     pub fn from(cards: Vec<Card>) -> Self {
         Self { cards }
     }
+    /// Gets the number of cards in this pile.
+    pub fn size(&self) -> usize {
+        self.cards.len()
+    }
+    /// Draw the top card of this pile, if there is one.
+    /// The card will be removed from the pile.
     pub fn draw(&mut self) -> Option<Card> {
         self.cards.pop()
     }
-    pub fn iter(&self) -> impl Iterator<Item = Card> + '_ {
-        self.cards
-            .iter()
-            .copied()
-    }
+    /// Draw the top `n` cards of this pile.
+    /// The cards will be removed from this pile.
     pub fn draw_n(&mut self, n: usize) -> Vec<Card> {
         let mut hand = Vec::with_capacity(n);
         for _ in 0..n {
@@ -32,11 +45,19 @@ impl OrderedPile {
         }
         hand
     }
+    /// Iterate over all cards in the pile
+    pub fn iter(&self) -> impl Iterator<Item = Card> + '_ {
+        self.cards
+            .iter()
+            .copied()
+    }
+    /// Add all cards in `other_pile` on top of this pile.
     pub fn add_to_top(&mut self, other_pile: &UnorderedPile) {
         for c in other_pile.iter() {
             self.cards.push(c);
         }
     }
+    /// Shuffle this pile.
     pub fn shuffle<R: Rng>(&mut self, rng: &mut R) {
         use rand::seq::SliceRandom;
         self.cards.shuffle(rng)

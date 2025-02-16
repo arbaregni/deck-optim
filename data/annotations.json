@@ -3,16 +3,38 @@
         {
             "targets": ["Mountain"],
             "key": "core:Produces",
-            "values": [{
-                "Mana": "{R}"
-            }]
+            "values": [
+                { "Mana": "{R}" }
+            ]
         },
         {
             "targets": ["Forest"],
             "key": "core:Produces",
-            "values": [{ 
-                "Mana": "{G}"
-            }]
+            "values": [
+                { "Mana": "{G}" }
+            ]
+        },
+        {
+            "targets": ["Sisay's Ring"],
+            "key": "core:Produces",
+            "values": [
+                { "Mana": "{C}{C}" }
+            ]
+        },
+        {
+            "targets": ["Ruby, Daring Tracker"],
+            "key": "core:Produces",
+            "values": [
+                { "Mana": "{G}" },
+                { "Mana": "{R}" }
+            ]
+        },
+        {
+            "targets": ["Explosive Vegetation"],
+            "key": "core:GameEffect",
+            "values": [
+                { "String": "fetches" }
+            ]
         }
     ]
 }

@@ -106,7 +106,7 @@ fn evaluate_deck(cli: &Cli, deck: Deck) -> MetricsData {
 
     let props = trial::Props {
         num_trials: cli.num_trials.unwrap_or(10_000),
-        max_turn: cli.max_turns.unwrap_or(50),
+        max_turn: cli.max_turns.unwrap_or(12),
     };
     let metrics = trial::run_trials(deck, strategies, watcher, props);
     
@@ -169,9 +169,7 @@ fn run(cli: Cli) -> Result<()> {
 
     // do the trial
 
-    let metrics = evaluate_deck(&cli, deck);
-
-    report_metrics_data(&cli, &metrics)?;
+    let _metrics = evaluate_deck(&cli, deck);
 
     Ok(())
 }

@@ -6,6 +6,8 @@ use crate::game::Deck;
 
 #[derive(Clone,Debug,Deserialize)]
 pub struct DeckList {
+    #[serde(default = "Vec::new")]
+    command_zone: Vec<DeckAllocation>,
     decklist: Vec<DeckAllocation>
 }
 
@@ -23,9 +25,12 @@ impl DeckList {
             .sum()
     }
     pub fn card_names(&self) -> Vec<&str> {
-        self.decklist.iter()
-            .map(|da| da.name.as_str())
-            .collect()
+        let mut card_names = Vec::with_capacity(self.decklist.len() + self.command_zone.len());
+
+        card_names.extend(self.decklist.iter().map(|da| da.name.as_str()));
+        card_names.extend(self.command_zone.iter().map(|da| da.name.as_str()));
+
+        card_names
     }
     pub fn into_deck(&self, collection: &CardCollection) -> Result<Deck, DeckConstructionError> {
         let mut num_missing = 0;
@@ -95,6 +100,7 @@ mod tests {
     #[test]
     fn test_count_cards() {
         let decklist = DeckList {
+            command_zone: vec![],
             decklist: vec![
                 DeckAllocation { name: "Fireball".to_string(), quantity: 3 },
                 DeckAllocation { name: "Lightning Bolt".to_string(), quantity: 2 },
@@ -106,6 +112,7 @@ mod tests {
     #[test]
     fn test_card_names() {
         let decklist = DeckList {
+            command_zone: vec![],
             decklist: vec![
                 DeckAllocation { name: "Fireball".to_string(), quantity: 3 },
                 DeckAllocation { name: "Lightning Bolt".to_string(), quantity: 2 },
@@ -120,6 +127,7 @@ mod tests {
     fn test_into_deck_success() {
         let collection = mock_collection();
         let decklist = DeckList {
+            command_zone: vec![],
             decklist: vec![
                 DeckAllocation { name: "Hill Giant".to_string(), quantity: 2 },
                 DeckAllocation { name: "Lightning Bolt".to_string(), quantity: 1 },
@@ -133,6 +141,7 @@ mod tests {
     fn test_into_deck_missing_cards() {
         let collection = mock_collection();
         let decklist = DeckList {
+            command_zone: vec![],
             decklist: vec![
                 DeckAllocation { name: "Lightning Bolt".to_string(), quantity: 2 },
                 DeckAllocation { name: "Nonexistent Card".to_string(), quantity: 1 },

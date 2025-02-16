@@ -70,39 +70,43 @@ mod land_drop_strategies {
 }
 #[allow(dead_code)]
 mod card_play_strategies {
-    use crate::game::ManaPool;
+    use crate::{game::ManaPool, opt_utils::OptExt};
 
     use super::*;
 
     pub fn naive_greedy<F: FnMut(Card) -> u32>(mut available_mana: ManaPool, mut legal_plays: Vec<Card>, mut utility: F) -> Vec<(Card, ManaPool)> {
         let mut plays = vec![];
 
+        log::debug!("begin naive greedy algorithm, available mana: {available_mana} and {} potential plays", legal_plays.len());
         loop {
-            log::debug!("in naive greedy algorithm, available mana: {available_mana}");
-            log::debug!("legal plays before filtering: {}", legal_plays.len());
+            log::debug!("   picking from {} candidate card plays, available mana: {available_mana}", legal_plays.len());
             // filter pick the best thing to play first
             legal_plays.sort_by_key(|card| utility(*card));
             // pick a card to play
             let Some(candidate) = legal_plays.pop() else {
-                log::debug!("can't pick a card to play, returnning");
+                log::debug!("       can't pick a card to play, returning");
                 break;
             };
+            log::debug!("   evaluating candidate: {candidate:?} with cost {}", candidate.data().cost.display());
             let Some(mana_cost) = candidate.data().cost.clone() else {
-                log::debug!("tried to cast {candidate:?} without a cost, skipping");
+                log::debug!("       candidate doesn't have a cost, can't play");
                 continue;
             };
             let mut payment_options = available_mana.payment_methods_for(mana_cost);
             let Some(payment) = payment_options.next() else {
-                log::debug!("no ways to pay for {mana_cost}, skipping");
+                log::debug!("       no ways to pay for {mana_cost} with {available_mana}, skipping");
                 continue;
             };
             let Some(remaining_mana) = available_mana - payment else {
-                log::warn!("tried to cast {candidate:?}, did not have enough available mana");
+                log::warn!("       invalid payment option: can not take {payment} from {available_mana}, not enough mana to cast");
                 continue;
             };
             available_mana = remaining_mana;
+            log::debug!("       playing {candidate:?} with {payment}");
             plays.push((candidate, payment));
         }
+
+        log::debug!("ending naive greedy algorithm, available mana: {available_mana}, cards being played: {}", plays.len());
 
         plays
     }

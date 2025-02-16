@@ -1,5 +1,7 @@
 use std::fmt;
 
+use itertools::Itertools;
+
 use super::ManaParseError;
 use super::ManaCost;
 use super::ManaType;
@@ -135,55 +137,69 @@ impl ManaPool {
         [white, blue, black, red, green, colorless].into_iter().sum()
     }
 
-    /// Try to remove a single pip from this mana pool.
+    /// Remove a single pip from this mana pool.
+    fn remove_pip(&self, mana_type: ManaType) -> ManaPool {
+        let mut new = self.clone();
+        new[mana_type] -= 1;
+        new
+    }
+    /// Adds a single pip into this mana pool.
+    fn add_pip(&self, mana_type: ManaType) -> ManaPool {
+        let mut new = self.clone();
+        new[mana_type] += 1;
+        new
+    }
+
+    /// Iterate over all types of mana present in this mana pool.
     /// # Example
     /// ```
     /// use deck_optim::game::mana::ManaPool;
     /// use deck_optim::game::mana::ManaType;
     ///
-    /// let pool = ManaPool::try_parse("{W}{W}{R}").expect("should parse");
-    /// 
-    /// let without_red = ManaPool::try_parse("{W}{W}").expect("should parse");
-    /// assert_eq!(pool.try_remove_pip(ManaType::Red), Some(without_red));
+    /// let available = ManaPool::try_parse("{W}{U}").expect("should parse");
+    /// let mut mana_types = available.mana_types();
     ///
-    /// let remove_a_white = ManaPool::try_parse("{W}{R}").expect("should parse");
-    /// assert_eq!(pool.try_remove_pip(ManaType::White), Some(remove_a_white));
-    ///
-    /// assert_eq!(pool.try_remove_pip(ManaType::Black), None)
+    /// assert_eq!(mana_types.next(), Some(ManaType::White));
+    /// assert_eq!(mana_types.next(), Some(ManaType::Blue));
+    /// assert_eq!(mana_types.next(), None);
     /// ```
-    pub fn try_remove_pip(&self, mana_type: ManaType) -> Option<ManaPool> {
-        use ManaType::*;
-        let new = match mana_type {
-            White => {
-                let white = self.white.checked_sub(1)?;
-                ManaPool { white, ..(*self) }
-            }
-            Blue => {
-                let blue = self.blue.checked_sub(1)?;
-                ManaPool { blue, ..(*self) }
+    pub fn mana_types(&self) -> impl Iterator<Item = ManaType> + use<'_> {
+        ManaType::all()
+            .into_iter()
+            .copied()
+            .filter(|mt| self[*mt] > 0)
+    }
 
-            }
-            Black => {
-                let black = self.black.checked_sub(1)?;
-                ManaPool { black , ..(*self) }
+    /// Iterate over all the ways we can pay for a certain amount of generic mana with this mana pool.
+    /// # Example
+    /// ```
+    /// use deck_optim::game::mana::ManaPool;
+    ///
+    /// let available = ManaPool::try_parse("{W}{U}").expect("should parse");
+    /// let mut payment_methods = available.payment_methods_for_generic(1);
+    ///
+    /// assert_eq!(payment_methods.next(), Some(ManaPool::blue(1)));
+    /// assert_eq!(payment_methods.next(), Some(ManaPool::white(1)));
+    /// assert_eq!(payment_methods.next(), None);
+    /// ```
+    pub fn payment_methods_for_generic(&self, generic: u8) -> impl Iterator<Item = ManaPool> {
+        if generic == 0 {
+            // there is a single way to pay for {0}
+            return vec![ManaPool::empty()].into_iter();
+        }
+        let mut solutions = vec![];
+        // for each type of mana that we have, we could take that pip in order to pay for {1} generic
+        for mt in self.mana_types() {
+            // remove the pip
+            let next = self.remove_pip(mt);
+            let next_solutions = next.payment_methods_for_generic(generic - 1)
+                .map(|soln| soln.add_pip(mt));
+            solutions.extend(next_solutions);
+        }
 
-            }
-            Red => {
-                let red = self.red.checked_sub(1)?;
-                ManaPool { red , ..(*self) }
-
-            }
-            Green => {
-                let green = self.green.checked_sub(1)?;
-                ManaPool { green , ..(*self) }
-
-            }
-            Colorless => {
-                let colorless = self.colorless.checked_sub(1)?;
-                ManaPool { colorless , ..(*self) }
-            }
-        };
-        Some(new)
+        solutions.sort();
+        solutions.dedup();
+        solutions.into_iter()
     }
 
     /// Iterate over all possible ways we can pay this cost given the available mana
@@ -196,39 +212,28 @@ impl ManaPool {
     ///
     /// let mut ways_to_pay = available.payment_methods_for(cost);
     ///
-    /// let opt1 = ManaPool::try_parse("{W}{U}").expect("should parse");
-    /// let opt2 = ManaPool::try_parse("{W}{G}").expect("should parse");
+    /// let opt1 = ManaPool::try_parse("{W}{G}").expect("should parse");
+    /// let opt2 = ManaPool::try_parse("{W}{U}").expect("should parse");
     /// assert_eq!(ways_to_pay.next(), Some(opt1));
     /// assert_eq!(ways_to_pay.next(), Some(opt2));
     /// assert_eq!(ways_to_pay.next(), None);
     ///
     /// ```
     pub fn payment_methods_for(&self, cost: ManaCost) -> impl Iterator<Item = ManaPool> {
+        let ManaCost { colors, generic } = cost;
 
-        fn __collect_payment_methods(solutions: &mut Vec<ManaPool>, remaining: ManaPool, partial_soln: ManaPool, generic_to_be_paid: u8) {
-            if generic_to_be_paid == 0 {
-                solutions.push(partial_soln);
-                return;
-            }
-            for mana_type in ManaType::all().into_iter().copied() {
-                let Some(new_remaining) = remaining.try_remove_pip(mana_type) else {
-                    // unable to remove pay for the generic with this pip, carry on
-                    continue;
-                };
-                let new_partial_soln = partial_soln + ManaPool::of(mana_type, 1);
-                __collect_payment_methods(solutions, new_remaining, new_partial_soln, generic_to_be_paid - 1);
-            }
-        }
+        // first, pay off the colored portion
+        let Some(remaining) = *self - colors else {
+            // unable to pay because of the colored mana requirements
+            return vec![].into_iter();
+        };
 
-        let mut solutions = Vec::with_capacity(cost.generic as usize);
+        // now, the question is: how many ways can the generic portion be payed off?
+        let solutions = remaining.payment_methods_for_generic(generic)
+            .map(|payment| payment + colors)
+            .collect_vec();
 
-        if let Some(remaining) = *self - cost.colors {
-            // we just paid off the colored portion of the cost
-            let generic_to_be_paid = cost.generic;
-            // now there are many ways for the generic portion to be paid
-            __collect_payment_methods(&mut solutions, remaining, cost.colors, generic_to_be_paid);
-        }
-
+        // coerce the types so it's the same as above
         solutions.into_iter()
     }
 }
@@ -245,6 +250,19 @@ impl std::ops::Index<ManaType> for ManaPool {
             Red => &self.red,
             Green => &self.green,
             Colorless => &self.colorless,
+        }
+    }
+}
+impl std::ops::IndexMut<ManaType> for ManaPool {
+    fn index_mut(&mut self, index: ManaType) -> &mut Self::Output {
+        use ManaType::*;
+        match index {
+            White => &mut self.white,
+            Blue => &mut self.blue,
+            Black => &mut self.black,
+            Red => &mut self.red,
+            Green => &mut self.green,
+            Colorless => &mut self.colorless,
         }
     }
 }
@@ -308,6 +326,9 @@ impl fmt::Display for ManaPool {
         for _ in 0..green     { write!(f, "{{G}}")?; }
         for _ in 0..colorless { write!(f, "{{C}}")?; }
 
+        if self.mana_value() == 0 {
+            write!(f, "{{0}}")?;
+        }
         Ok(())
     }
 }
@@ -315,6 +336,8 @@ impl fmt::Display for ManaPool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use pretty_assertions::assert_eq;
 
     fn default<T: Default>() -> T {
         Default::default()
@@ -420,5 +443,162 @@ mod tests {
 
         assert_eq!(actual, None);
     }
+
+    #[test]
+    fn test_sub_colorless() {
+        let available = ManaPool::try_parse("{R}{R}{R}{G}{G}{C}{C}").expect("should parse");
+        let payment = ManaPool::try_parse("{R}{R}{C}{C}{G}{G}").expect("should parse");
+
+        let remaining = available - payment;
+        let expected_remaining = Some(ManaPool::try_parse("{R}").expect("should parse"));
+
+        assert_eq!(remaining, expected_remaining);
+    }
+
+    #[test]
+    fn test_payment_methods_for_generic_zero() {
+        let available = ManaPool::try_parse("{R}").expect("should parse");
+
+        let mut payment_methods = available.payment_methods_for_generic(0);
+
+        assert_eq!(payment_methods.next(), Some(ManaPool::empty()));
+        assert_eq!(payment_methods.next(), None);
+    }
+    
+    #[test]
+    fn test_payment_methods_for_generic_zero_from_zero() {
+        let available = ManaPool::try_parse("{0}").expect("should parse");
+
+        let mut payment_methods = available.payment_methods_for_generic(0);
+
+        assert_eq!(payment_methods.next(), Some(ManaPool::empty()));
+        assert_eq!(payment_methods.next(), None);
+    }
+
+    #[test]
+    fn test_payment_methods_for_generic_single() {
+        let available = ManaPool::try_parse("{R}").expect("should parse");
+
+        let mut payment_methods = available.payment_methods_for_generic(1);
+
+        assert_eq!(payment_methods.next(), Some(ManaPool::try_parse("{R}").expect("should parse")));
+        assert_eq!(payment_methods.next(), None);
+    }
+
+    #[test]
+    fn test_payment_methods_for_generic_single_multiple_colors() {
+        let available = ManaPool::try_parse("{R}{B}").expect("should parse");
+
+        let mut payment_methods = available.payment_methods_for_generic(1);
+
+        assert_eq!(payment_methods.next(), Some(ManaPool::try_parse("{R}").expect("should parse")));
+        assert_eq!(payment_methods.next(), Some(ManaPool::try_parse("{B}").expect("should parse")));
+        assert_eq!(payment_methods.next(), None);
+    }
+
+    #[test]
+    fn test_payment_methods_for_generic_single_duplicate_colors() {
+        let available = ManaPool::try_parse("{R}{R}").expect("should parse");
+
+        let mut payment_methods = available.payment_methods_for_generic(1);
+
+        assert_eq!(payment_methods.next(), Some(ManaPool::try_parse("{R}").expect("should parse")));
+        assert_eq!(payment_methods.next(), None);
+    }
+
+    #[test]
+    fn test_payment_methods_for_generic_single_impossible() {
+        let available = ManaPool::try_parse("{0}").expect("should parse");
+
+        let mut payment_methods = available.payment_methods_for_generic(1);
+
+        assert_eq!(payment_methods.next(), None);
+    }
+
+    #[test]
+    fn test_payment_methods_for_generic_pay_two_of_the_same() {
+        let available = ManaPool::try_parse("{U}{U}").expect("should parse");
+
+        let mut payment_methods = available.payment_methods_for_generic(2);
+
+        assert_eq!(payment_methods.next(), Some(ManaPool::try_parse("{U}{U}").expect("should parse")));
+        assert_eq!(payment_methods.next(), None);
+    }
+ 
+    #[test]
+    fn test_payment_methods_for_generic_pay_two_extra_mana() {
+        let available = ManaPool::try_parse("{U}{U}{B}{G}").expect("should parse");
+
+        let mut payment_methods = available.payment_methods_for_generic(2);
+
+        assert_eq!(payment_methods.next(), Some(ManaPool::try_parse("{B}{G}").expect("should parse")));
+        assert_eq!(payment_methods.next(), Some(ManaPool::try_parse("{U}{G}").expect("should parse")));
+        assert_eq!(payment_methods.next(), Some(ManaPool::try_parse("{U}{B}").expect("should parse")));
+        assert_eq!(payment_methods.next(), Some(ManaPool::try_parse("{U}{U}").expect("should parse")));
+        assert_eq!(payment_methods.next(), None);
+    }
+
+    #[test]
+    fn test_payment_methods_for_generic_pay_two_impossible() {
+        let available = ManaPool::try_parse("{U}").expect("should parse");
+
+        let mut payment_methods = available.payment_methods_for_generic(2);
+
+        assert_eq!(payment_methods.next(), None);
+    }
+           
+                                    
+
+   #[test]
+    fn test_payment_method_single_possibility() {
+        let available = ManaPool::try_parse("{R}{R}{G}{G}").expect("should parse");
+        let cost = ManaCost::try_parse("{2}{G}{G}").expect("should parse");
+
+        let mut payment_methods = available.payment_methods_for(cost);
+
+        assert_eq!(payment_methods.next(), Some(ManaPool::try_parse("{R}{R}{G}{G}").expect("should parse")));
+        assert_eq!(payment_methods.next(), None);
+    }
+
+    #[test]
+    fn test_payment_method_multiple_answers() {
+        let available = ManaPool::try_parse("{W}{U}{B}{G}{G}").expect("should parse");
+        let cost = ManaCost::try_parse("{2}{G}{G}").expect("should parse");
+
+        let payment_methods = available.payment_methods_for(cost);
+        let mut actual_answers: Vec<_> = payment_methods.collect();
+
+        let mut expected_answers = vec![
+            ManaPool::try_parse("{W}{U}{G}{G}").expect("should parse"),
+            ManaPool::try_parse("{W}{B}{G}{G}").expect("should parse"),
+            ManaPool::try_parse("{U}{B}{G}{G}").expect("should parse"),
+        ];
+
+        actual_answers.sort();
+        expected_answers.sort();
+        assert_eq!(actual_answers, expected_answers);
+    }
+
+
+    #[test]
+    fn test_payment_method_generic() {
+        let available = ManaPool::try_parse("{R}{R}{R}{G}{C}{C}").expect("should parse");
+        let cost = ManaCost::try_parse("{4}").expect("should parse");
+
+        let payment_methods = available.payment_methods_for(cost);
+        let mut actual_answers: Vec<_> = payment_methods.collect();
+
+        let mut expected_answers = vec![
+            ManaPool::try_parse("{R}{R}{R}{G}").expect("should parse"),
+            ManaPool::try_parse("{R}{R}{R}{C}").expect("should parse"),
+            ManaPool::try_parse("{R}{R}{C}{C}").expect("should parse"),
+            ManaPool::try_parse("{R}{R}{C}{G}").expect("should parse"),
+            ManaPool::try_parse("{R}{C}{C}{G}").expect("should parse"),
+        ];
+
+        actual_answers.sort();
+        expected_answers.sort();
+        assert_eq!(actual_answers, expected_answers);
+    } 
 
 }

@@ -12,6 +12,7 @@ pub use collection::card_cache;
 pub mod scryfall;
 
 pub mod file_utils;
+pub mod opt_utils;
 
 pub const PROJECT_NAME: &'static str = "deck-optim-0.1.0";
 

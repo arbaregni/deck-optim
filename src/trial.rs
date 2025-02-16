@@ -1,5 +1,6 @@
 use rand::SeedableRng;
 
+use crate::game::annotations::AnnotationValue;
 use crate::game::Library;
 use crate::game::Hand;
 use crate::game::state::State;
@@ -18,7 +19,7 @@ pub struct Props {
 impl Default for Props {
     fn default() -> Self {
         Self {
-            max_turn: 50,
+            max_turn: 12,
             num_trials: 1000,
         }
     }
@@ -91,15 +92,32 @@ impl Trial {
                 self.state.draw_to_hand();
             }
 
+            log::debug!("on turn {}, {} cards in hand, {} cards in play, {} cards in graveyard, {} cards in deck",
+                        self.state.turn,
+                        self.state.hand.size(),
+                        self.state.permanents.size(),
+                        self.state.graveyard.size(),
+                        self.state.library.size()
+            );
+
+
             if let Some(land_drop) = strategies.land_drop(&self.state) {
                 log::debug!("playing land: {land_drop:?}");
                 watcher.land_drop(land_drop, &self.state, &mut self.metrics);
+
+                self.state.hand.remove(land_drop);
                 self.state.play_card(land_drop);
             }
 
             for (card_play, payment) in strategies.card_plays(&self.state) {
                 log::debug!("playing card: {card_play:?} using {payment}");
                 watcher.card_play(card_play, &self.state, &mut self.metrics);
+
+                card_play.effects()
+                    .iter()
+                    .for_each(|effect| self.apply_card_effect(effect));
+
+                self.state.hand.remove(card_play);
                 self.state.play_card(card_play);
             }
 
@@ -111,6 +129,19 @@ impl Trial {
 
         self.metrics.trials_seen += 1;
         self.metrics
+    }
+
+    fn apply_card_effect(&mut self, effect: &AnnotationValue) {
+        use AnnotationValue::*;
+        match effect {
+            String(s) if s == "fetches" => {
+                // TODO: do this better
+            }
+            _ => { /* nothing to do */}
+        }
+
+
+
     }
 
 }

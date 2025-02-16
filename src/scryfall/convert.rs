@@ -52,6 +52,9 @@ pub fn convert_card_types(types: &str) -> Result<CardTypes, ConversionError> {
             "instant"   => card_types.push(Instant),
             "sorcery"   => card_types.push(Sorcery),
             "creature"  => card_types.push(Creature),
+            "artifact"  => card_types.push(Artifact),
+            "enchantment"   => card_types.push(Enchantment),
+            "planeswalker"  => card_types.push(Planeswalker),
 
             "basic"     => super_types.push(Basic),
             "snow"      => super_types.push(Snow),

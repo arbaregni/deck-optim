@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::collection::Card;
+use crate::game::annotations::Annotation;
 use crate::game::mana::ManaCost;
 use crate::game::mana::ManaPool;
 
@@ -28,14 +29,25 @@ pub enum CardType {
     Instant,
     Creature,
     Sorcery,
+    Artifact,
+    Enchantment,
+    Planeswalker
 }
 
 pub const PRODUCES_MANA_TAG: &'static str = "core:Produces";
+pub const GAME_EFFECT_TAG: &'static str = "core:GameEffect";
 
 impl Card {
     /// Get the name of the card
     pub fn name(self) -> &'static str {
         self.data().name.as_str()
+    }
+
+    pub fn effects(self) -> &'static [AnnotationValue] {
+        const EMPTY: &'static [AnnotationValue] = &[];
+        self.annotations().get(GAME_EFFECT_TAG)
+            .map(Annotation::values)
+            .unwrap_or(EMPTY)
     }
 
     /// Get the mana produces by this card, as specified by the tag "core:Produces"
