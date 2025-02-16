@@ -5,11 +5,13 @@ use crate::collection::Card;
 use crate::game::card::CardType;
 use crate::trial::Rand;
 use crate::game::{
-    Hand, Library, UnorderedPile
+    Battlefield, CommandZone, Graveyard, Hand, Library 
 };
-
-use super::{ManaCost, ManaPool};
-
+use crate::game::unordered_pile::UnorderedPile;
+use crate::game::Deck;
+use crate::game::Zone;
+use crate::game::card_play::CardPlay;
+use crate::game::mana::ManaPool;
 
 const PROB_OF_GOING_FIRST: f64 = 0.5;
 const HAND_SIZE: u32 = 7;
@@ -26,28 +28,24 @@ pub struct State {
     // 
     // ZONES
     //
-
-    // Library
     pub library: Library,
-
-    // Hand
     pub hand: Hand,
-    
-    // Battle field
-    pub permanents: UnorderedPile,
-
-    // Graveyard
-    pub graveyard: UnorderedPile, // technically it's ordered, but whatever
-
+    pub permanents: Battlefield,
+    pub graveyard: Graveyard, 
+    pub command_zone: CommandZone,
 }
 
 impl State {
-    pub fn new(deck: UnorderedPile, rng: &mut Rand) -> State {
+    /// Create a new initial state from the deck. 
+    pub fn new(deck: Deck, rng: &mut Rand) -> State {
         State {
-            library: deck.to_ordered(rng),
+            library: deck.deck.to_ordered(rng),
+            command_zone: deck.command_zone,
+
             hand: Hand::empty(),
-            permanents: UnorderedPile::empty(),
-            graveyard: UnorderedPile::empty(),
+            permanents: Battlefield::empty(),
+            graveyard: Graveyard::empty(),
+
             turn: 0,
             draw_on_first_turn: rng.gen_bool(PROB_OF_GOING_FIRST),
             num_mulligans_taken: 0,
@@ -56,6 +54,7 @@ impl State {
             turn_state: TurnState::new(),
         }
     }
+    /// Draw a hand, decreases as the number of mulligans taken.
     pub fn draw_hand(&mut self) {
         if self.num_mulligans_taken >= HAND_SIZE {
             log::warn!("taking more mulligans than hand size allowed, ignoring extra mulligans");
@@ -64,6 +63,8 @@ impl State {
         let hand_size = HAND_SIZE - self.num_mulligans_taken;
         self.hand = self.library.draw_n(hand_size as usize).into();
     }
+
+    /// Put the hand into library and shuffle. Hand is now empty.
     pub fn shuffle_hand_into_library(&mut self, rng: &mut Rand) {
         self.library.add_to_top(&self.hand);
         self.library.shuffle(rng);
@@ -71,6 +72,8 @@ impl State {
     }
 
     
+    /// Remove a card from the top of the library and put it into hand.
+    /// Will mark the game loss flag if this draw is impossible.
     pub fn draw_to_hand(&mut self) {
         match self.library.draw() {
             Some(card) => {
@@ -82,7 +85,22 @@ impl State {
         }
     }
 
-    pub fn play_card(&mut self, card: Card) {
+    /// Removes a card from
+    fn remove_from_zone(&mut self, card: Card, zone: Zone) {
+        match zone {
+            Zone::CommandZone => self.command_zone.remove(card),
+            Zone::Hand => self.hand.remove(card),
+            Zone::Graveyard => self.graveyard.remove(card),
+            Zone::Battlefield => self.permanents.remove(card),
+            Zone::Library => todo!("not sure how to remove from library. i.e. which copy are we removing? is it from the top? etc."),
+        };
+    }
+
+    pub fn play_card(&mut self, card_play: CardPlay) {
+         let CardPlay { card, zone, payment: _ } = card_play;
+
+         self.remove_from_zone(card, zone);
+
          match card.data().card_type {
             CardType::Instant  | CardType::Sorcery => {
                 self.graveyard.add(card);
@@ -103,12 +121,21 @@ impl State {
     }
 
 
-    // some measures
-    pub fn legal_card_plays(&self) -> impl Iterator<Item = Card> + '_ {
-        self.hand
-            .iter()
-            // todo: some enforcement here, before we go into
+    pub fn legal_card_plays(&self) -> impl Iterator<Item = CardPlay> + '_ {
+        let hand = self.hand.iter()
+            .map(|card| CardPlay {
+                card, zone: Zone::Hand, payment: ManaPool::empty()
+            });
+        let commanders = self.command_zone.iter()
+            .map(|card| CardPlay {
+                card, zone: Zone::CommandZone, payment: ManaPool::empty()
+            });
+        
+        // TODO: some enforcement here, before we go into the strategies
+        hand.chain(commanders)
     }
+    
+    // some measures
     pub fn available_mana(&self) -> ManaPool {
         self.permanents
             .iter()

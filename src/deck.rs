@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::collection::CardCollection;
-use crate::game::Deck;
+use crate::collection::{Card, CardCollection};
+use crate::game::{CommandZone, Deck, UnorderedPile};
 
 #[derive(Clone,Debug,Deserialize)]
 pub struct DeckList {
@@ -33,27 +33,38 @@ impl DeckList {
         card_names
     }
     pub fn into_deck(&self, collection: &CardCollection) -> Result<Deck, DeckConstructionError> {
-        let mut num_missing = 0;
-        let mut cards = Vec::with_capacity(self.count());
-        for da in self.decklist.iter() {
-            let name = da.name.as_str();
-            let Some(card) = collection.card_named(name) else {
-                log::error!("could not construct deck - no card with name '{name}'");
-                num_missing += 1;
-                continue
-            };
-            for _ in 0..da.quantity() {
-                cards.push(card);
-            }
-        }
-        if num_missing > 0 {
-            return Err(DeckConstructionError::MissingCards { num_missing })
-        }
+        let mut command_zone = CommandZone::empty();
+        for_each_card(&self.command_zone, collection, |card| command_zone.add(card))?;
 
-        let deck = Deck::from(cards);
-        Ok(deck)
+        let mut deck = UnorderedPile::empty();
+        for_each_card(&self.decklist, collection, |card| deck.add(card))?;
+
+        Ok(Deck {
+            command_zone,
+            deck
+        })
     }
 }
+
+fn for_each_card<'a, Iter: IntoIterator<Item = &'a DeckAllocation>, F: FnMut(Card)>(deck_allocations: Iter, collection: &CardCollection, mut consumer: F) -> Result<(), DeckConstructionError> {
+    let mut num_missing = 0;
+    for da in deck_allocations {
+        let name = da.name.as_str();
+        let Some(card) = collection.card_named(name) else {
+            log::error!("could not construct deck - no card with name `{name}'");
+            num_missing += 1;
+            continue;
+        };
+        for _ in 0..da.quantity() {
+            consumer(card);
+        }
+    }
+    if num_missing > 0 {
+        return Err(DeckConstructionError::MissingCards { num_missing });
+    }
+    Ok(())
+}
+
 
 impl DeckAllocation {
     pub fn quantity(&self) ->  usize {
@@ -134,7 +145,7 @@ mod tests {
             ],
         };
         let deck = decklist.into_deck(&collection).unwrap();
-        assert_eq!(deck.size(), 3);
+        assert_eq!(deck.deck.size(), 3);
     }
 
     #[test]

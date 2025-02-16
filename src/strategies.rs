@@ -3,16 +3,16 @@ use rand::Rng;
 
 use crate::collection::Card;
 use crate::game::card::CardType;
+use crate::game::card_play::CardPlay;
 use crate::game::state::State;
 use crate::game::unordered_pile::UnorderedPile;
-use crate::game::ManaPool;
 use crate::trial::Rand;
 
 #[allow(unused)]
 pub trait Strategy {
     fn mulligan_hand(&mut self, state: &State) -> bool { false }
     fn land_drop(&mut self, state: &State) -> Option<Card> { None }
-    fn card_plays(&mut self, state: &State) -> Vec<(Card, ManaPool)> { vec![] }
+    fn card_plays(&mut self, state: &State) -> Vec<CardPlay> { vec![] }
 }
 
 #[derive(Clone)]
@@ -32,9 +32,9 @@ impl Strategy for StrategyImpl {
         land_drop_strategies::random_land(&mut self.rng, state)
     }
 
-    fn card_plays(&mut self, state: &State) -> Vec<(Card, ManaPool)> { 
+    fn card_plays(&mut self, state: &State) -> Vec<CardPlay> { 
         let available_mana = state.available_mana();
-        let potential_plays = state.hand.iter().collect_vec();
+        let potential_plays = state.legal_card_plays().collect_vec();
         card_play_strategies::naive_greedy(available_mana, potential_plays, |card| {
             let cost = card.data().cost.unwrap_or_default();
             cost.mana_value() as u32
@@ -70,20 +70,21 @@ mod land_drop_strategies {
 }
 #[allow(dead_code)]
 mod card_play_strategies {
-    use crate::{game::ManaPool, opt_utils::OptExt};
+    use crate::game::{card_play::CardPlay, ManaPool};
+    use crate::opt_utils::OptExt;
 
     use super::*;
 
-    pub fn naive_greedy<F: FnMut(Card) -> u32>(mut available_mana: ManaPool, mut legal_plays: Vec<Card>, mut utility: F) -> Vec<(Card, ManaPool)> {
+    pub fn naive_greedy<F: FnMut(Card) -> u32>(mut available_mana: ManaPool, mut legal_plays: Vec<CardPlay>, mut utility: F) -> Vec<CardPlay> {
         let mut plays = vec![];
 
         log::debug!("begin naive greedy algorithm, available mana: {available_mana} and {} potential plays", legal_plays.len());
         loop {
             log::debug!("   picking from {} candidate card plays, available mana: {available_mana}", legal_plays.len());
             // filter pick the best thing to play first
-            legal_plays.sort_by_key(|card| utility(*card));
+            legal_plays.sort_by_key(|card_play| utility(card_play.card));
             // pick a card to play
-            let Some(candidate) = legal_plays.pop() else {
+            let Some(CardPlay { card: candidate, zone, payment: _ }) = legal_plays.pop() else {
                 log::debug!("       can't pick a card to play, returning");
                 break;
             };
@@ -103,7 +104,11 @@ mod card_play_strategies {
             };
             available_mana = remaining_mana;
             log::debug!("       playing {candidate:?} with {payment}");
-            plays.push((candidate, payment));
+            plays.push(CardPlay {
+                card: candidate, 
+                zone,
+                payment
+            });
         }
 
         log::debug!("ending naive greedy algorithm, available mana: {available_mana}, cards being played: {}", plays.len());

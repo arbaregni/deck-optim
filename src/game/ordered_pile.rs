@@ -4,7 +4,7 @@ use crate::collection::Card;
 
 use super::UnorderedPile;
 
-#[derive(Clone)]
+#[derive(Clone,Debug)]
 pub struct OrderedPile {
     cards: Vec<Card>
 }

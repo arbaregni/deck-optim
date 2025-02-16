@@ -1,10 +1,13 @@
 use rand::SeedableRng;
 
 use crate::game::annotations::AnnotationValue;
+use crate::game::card_play::CardPlay;
+use crate::game::Deck;
 use crate::game::Library;
 use crate::game::Hand;
+use crate::game::Zone;
 use crate::game::state::State;
-use crate::game::unordered_pile::UnorderedPile;
+use crate::game::mana::ManaPool;
 use crate::strategies::Strategy;
 use crate::watcher::Watcher;
 use crate::metrics::MetricsData;
@@ -34,10 +37,10 @@ pub struct Trial {
 }
 
 impl Trial {
-    pub fn new(deck: UnorderedPile, rng: Rand) -> Self {
+    pub fn new(deck: Deck, rng: Rand) -> Self {
         Self::from_props(deck, rng, Props::default())
     }
-    pub fn from_props(deck: UnorderedPile, mut rng: Rand, props: Props) -> Self {
+    pub fn from_props(deck: Deck, mut rng: Rand, props: Props) -> Self {
         let state = State::new(
             deck,
             &mut rng
@@ -105,19 +108,22 @@ impl Trial {
                 log::debug!("playing land: {land_drop:?}");
                 watcher.land_drop(land_drop, &self.state, &mut self.metrics);
 
-                self.state.hand.remove(land_drop);
-                self.state.play_card(land_drop);
+                self.state.play_card(CardPlay { 
+                    card: land_drop,
+                    zone: Zone::Hand,
+                    payment: ManaPool::empty()
+                });
             }
 
-            for (card_play, payment) in strategies.card_plays(&self.state) {
-                log::debug!("playing card: {card_play:?} using {payment}");
-                watcher.card_play(card_play, &self.state, &mut self.metrics);
+            for card_play in strategies.card_plays(&self.state) {
+                log::debug!("playing card: {card_play:?}");
+                watcher.card_play(card_play.card, &self.state, &mut self.metrics);
 
-                card_play.effects()
+                card_play.card
+                    .effects()
                     .iter()
                     .for_each(|effect| self.apply_card_effect(effect));
 
-                self.state.hand.remove(card_play);
                 self.state.play_card(card_play);
             }
 
@@ -146,12 +152,14 @@ impl Trial {
 
 }
 
-pub fn run_trials<S, W>(deck: UnorderedPile, strategies: S, watcher: W, props: Props) -> MetricsData
+pub fn run_trials<S, W>(deck: Deck, strategies: S, watcher: W, props: Props) -> MetricsData
 where S: Strategy + Clone + Sync,
       W: Watcher + Clone + Sync 
 {
     use rayon::iter::IntoParallelIterator;
     use rayon::iter::ParallelIterator;
+
+    log::info!("beginning trial with props: {props:?}");
 
     (0..props.num_trials)
         .into_iter()
