@@ -12,7 +12,6 @@ use crate::trial::Rand;
 #[allow(unused)]
 pub trait Strategy {
     fn mulligan_hand(&mut self, state: &State) -> bool { false }
-    fn land_drop(&mut self, state: &State) -> Option<Card> { None }
     fn card_plays(&mut self, state: &State) -> Vec<CardPlay> { vec![] }
 }
 

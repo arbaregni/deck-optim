@@ -12,8 +12,6 @@ pub trait Watcher {
 
     fn game_end(&self, state: &State, metrics: &mut MetricsData) { }
 
-    fn land_drop(&self, land_drop: Card, state: &State, metrics: &mut MetricsData) { }
-
     fn card_play(&self, card_play: Card, state: &State, metrics: &mut MetricsData) { }
 }
 

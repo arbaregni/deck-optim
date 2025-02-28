@@ -107,6 +107,9 @@ impl State {
             }
             CardType::Land => {
                 self.turn_state.land_drops_made += 1;
+                if self.turn_state.land_drops_made > self.max_land_drops_per_turn {
+                    log::warn!("ILLEGAL PLAY: played {card:?} as {}th land drop, only {}", self.turn_state.land_drops_made, self.max_land_drops_per_turn);
+                }
                 self.permanents.add(card);
             }
             _ => {
