@@ -6,6 +6,7 @@ use crate::game::card::CardType;
 use crate::game::card_play::CardPlay;
 use crate::game::state::State;
 use crate::game::unordered_pile::UnorderedPile;
+use crate::game::{ManaPool, Zone};
 use crate::trial::Rand;
 
 #[allow(unused)]
@@ -27,18 +28,33 @@ impl Strategy for StrategyImpl {
     fn mulligan_hand(&mut self, state: &State) -> bool { 
         mulligan_strategies::between_3_and_4_lands(state)
     }
-
-    fn land_drop(&mut self, state: &State) -> Option<Card> {
-        land_drop_strategies::random_land(&mut self.rng, state)
-    }
-
     fn card_plays(&mut self, state: &State) -> Vec<CardPlay> { 
         let available_mana = state.available_mana();
         let potential_plays = state.legal_card_plays().collect_vec();
-        card_play_strategies::naive_greedy(available_mana, potential_plays, |card| {
-            let cost = card.data().cost.unwrap_or_default();
-            cost.mana_value() as u32
-        })
+
+
+        let mut plays = Vec::with_capacity(2);
+
+        if let Some(land_drop) = land_drop_strategies::random_land(&mut self.rng, state) {
+            let land_drop = CardPlay {
+                card: land_drop,
+                zone: Zone::Hand,
+                payment: ManaPool::empty(),
+            };
+            plays.push(land_drop);
+        }
+
+        card_play_strategies::naive_greedy(
+            &mut plays,
+            available_mana,
+            potential_plays, 
+            |card| {
+                let cost = card.data().cost.unwrap_or_default();
+                cost.mana_value() as u32
+            }
+        );
+
+        plays
     }
 }
 
@@ -75,9 +91,7 @@ mod card_play_strategies {
 
     use super::*;
 
-    pub fn naive_greedy<F: FnMut(Card) -> u32>(mut available_mana: ManaPool, mut legal_plays: Vec<CardPlay>, mut utility: F) -> Vec<CardPlay> {
-        let mut plays = vec![];
-
+    pub fn naive_greedy<F: FnMut(Card) -> u32>(plays: &mut Vec<CardPlay>, mut available_mana: ManaPool, mut legal_plays: Vec<CardPlay>, mut utility: F) {
         log::debug!("begin naive greedy algorithm, available mana: {available_mana} and {} potential plays", legal_plays.len());
         loop {
             log::debug!("   picking from {} candidate card plays, available mana: {available_mana}", legal_plays.len());
@@ -112,8 +126,6 @@ mod card_play_strategies {
         }
 
         log::debug!("ending naive greedy algorithm, available mana: {available_mana}, cards being played: {}", plays.len());
-
-        plays
     }
 
     pub fn random_nonland(rng: &mut Rand, state: &State) -> Option<Card> {

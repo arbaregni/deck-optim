@@ -1,3 +1,4 @@
+use crate::game::CardType;
 use crate::metrics::{MetricsData, MetricsKey};
 use crate::collection::Card;
 use crate::game::state::State;
@@ -23,12 +24,12 @@ impl Watcher for WatcherImpl {
         metrics.add_count("opening-hand::lands", state.num_lands_in_hand() as u32);
     }
 
-    fn land_drop(&self, _card: Card, _state: &State, metrics: &mut MetricsData) {
-        metrics.add("land-drops");
-    }
-
     fn card_play(&self, card_play: Card, state: &State, metrics: &mut MetricsData) {
-        metrics.add("card-plays");
+        if card_play.data().card_type == CardType::Land {
+            metrics.add("land-drops");
+        } else {
+             metrics.add("card-plays");
+        }
 
         metrics.set(
             MetricsKey::from("turn-played").card(card_play),

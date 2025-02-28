@@ -104,17 +104,6 @@ impl Trial {
             );
 
 
-            if let Some(land_drop) = strategies.land_drop(&self.state) {
-                log::debug!("playing land: {land_drop:?}");
-                watcher.land_drop(land_drop, &self.state, &mut self.metrics);
-
-                self.state.play_card(CardPlay { 
-                    card: land_drop,
-                    zone: Zone::Hand,
-                    payment: ManaPool::empty()
-                });
-            }
-
             for card_play in strategies.card_plays(&self.state) {
                 log::debug!("playing card: {card_play:?}");
                 watcher.card_play(card_play.card, &self.state, &mut self.metrics);
@@ -141,7 +130,7 @@ impl Trial {
         use AnnotationValue::*;
         match effect {
             String(s) if s == "fetches" => {
-                // TODO: do this better
+                todo!("apply game action: {s}")
             }
             _ => { /* nothing to do */}
         }
