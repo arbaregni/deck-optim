@@ -158,9 +158,16 @@ mod global_collection {
 pub use global_collection::init;
 
 #[allow(unused)]
+/// Create sample cards for testing purposes.
 pub fn get_sample_cards(num: usize) -> Vec<Card> {
     (0..num)
         .into_iter()
         .map(|idx| Card { idx })
         .collect()
+}
+
+#[allow(unused)]
+/// Create sample cards for testing purposes.
+pub fn get_sample_cards_static<const N: usize>() -> [Card; N] {
+    std::array::from_fn(|idx| Card { idx })
 }

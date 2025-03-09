@@ -1,5 +1,6 @@
 use itertools::Itertools;
 
+use crate::collection::Card;
 use crate::game::mana::ManaPool;
 use crate::game::mana::ManaCost;
 
@@ -70,8 +71,123 @@ pub fn payment_methods_for(available: &ManaPool, cost: &ManaCost) -> impl Iterat
     solutions.into_iter()
 }
 
+
+/// A mana source is a way to produce mana.
+/// Typically, this is by tapping a land, a mana rock, or a mana dork.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManaSource {
+    pub card: Card,
+    pub produces: Vec<ManaPool>
+}
+
+/// A payment solution is a list of 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PaymentSolution {
+    pub cards_to_tap: Vec<(Card, ManaPool)>,
+    pub mana_used: ManaPool,
+}
+impl PaymentSolution {
+    fn new() -> Self {
+        Self {
+            cards_to_tap: Vec::with_capacity(3),
+            mana_used: ManaPool::empty()
+        }
+    }
+    fn add(&mut self, card: Card, mana: ManaPool) {
+        self.mana_used = self.mana_used + mana;
+        self.cards_to_tap.push((card, mana));
+    }
+    fn with_payment(&self, card: Card, mana: ManaPool) -> Self {
+        let mut next = self.clone();
+        next.add(card, mana);
+        next
+    }
+}
+
+/// Iterate over all possible ways to pay for a given mana cost, using a list of mana sources
+/// ```
+/// use deck_optim::strategies::payment_solver;
+/// use deck_optim::strategies::payment_solver::ManaSource;
+/// use deck_optim::strategies::payment_solver::PaymentSolution;
+/// use deck_optim::game::mana::ManaPool;
+/// use deck_optim::game::mana::ManaCost;
+///
+/// let [mock_forest, mock_taiga] = deck_optim::collection::get_sample_cards_static::<2>();
+///
+/// let mana_sources = vec![
+///     ManaSource {
+///         card: mock_forest,
+///         produces: vec![ManaPool::green(1)]
+///     },
+///     ManaSource {
+///         card: mock_taiga,
+///         produces: vec![ManaPool::red(1), ManaPool::green(1)]
+///     }
+/// ];
+///
+/// let cost_to_pay = ManaCost::try_parse("{R}{G}").expect("should parse");
+///
+/// let solution = payment_solver::autotap_pay_for(mana_sources, &cost_to_pay);
+///
+/// let expected_solution = PaymentSolution {
+///     cards_to_tap: vec![
+///         (mock_forest, ManaPool::green(1)),
+///         (mock_taiga, ManaPool::red(1))
+///     ],
+///     mana_used: ManaPool::try_parse("{R}{G}").expect("should parse")
+/// };
+///
+/// assert_eq!(solution, Some(expected_solution));
+/// ```
+pub fn autotap_pay_for(mut sources: Vec<ManaSource>, cost: &ManaCost) -> Option<PaymentSolution> {
+    let mut partial_soln = PaymentSolution::new();
+    // first, we tap everything that only can tap for one thing.
+    // this reduces the size of the list and prevents unnecessary recursion
+    sources.retain_mut(|mana_source| {
+        match &mana_source.produces[..] {
+            &[] => false,
+            &[mana] => {
+                partial_soln.add(mana_source.card, mana);
+                false
+            }
+            _ => true,
+        }
+    });
+
+    fn _autotap_recursive(partial_soln: PaymentSolution, sources: &[ManaSource], cost: &ManaCost) -> Option<PaymentSolution> {
+        // if we can pay for the cost already, do so and we are done.
+        // this should be done before going into each source, because we might have enough floating
+        // mana already to pay for the cost
+        if payment_methods_for(&partial_soln.mana_used, cost).next().is_some() {
+            return Some(partial_soln);
+        }
+
+        if sources.len() == 0 {
+            return None;
+        }
+        let source = &sources[0];
+        let remaining_sources = &sources[1..];
+
+        // try to tap the first one, then tap the second
+        for payment in source.produces.iter() {
+
+            let next = partial_soln.with_payment(source.card, *payment);
+
+            if let Some(solution) = _autotap_recursive(next, remaining_sources, cost) {
+                return Some(solution);
+            }
+        }
+
+        None
+    }
+
+    _autotap_recursive(partial_soln, &sources[..], cost)
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::collection;
+
     use super::*;
 
     #[test]
@@ -219,5 +335,168 @@ mod tests {
         expected_answers.sort();
         assert_eq!(actual_answers, expected_answers);
     } 
+
+    #[test]
+    fn test_autotap_simple_match() {
+        let [mock_mountain] = collection::get_sample_cards_static::<1>();
+
+        let mana_sources = vec![
+            ManaSource {
+                card: mock_mountain,
+                produces: vec![ManaPool::red(1)]
+            }
+        ];
+
+        let cost_to_pay = ManaCost::try_parse("{R}").expect("should parse");
+
+        let solution = autotap_pay_for(mana_sources, &cost_to_pay);
+
+        let expected_solution = PaymentSolution {
+            cards_to_tap: vec![
+                (mock_mountain, ManaPool::red(1))
+            ],
+            mana_used: ManaPool::red(1)
+        };
+
+        assert_eq!(solution, Some(expected_solution));
+    }
+
+    #[test]
+    fn test_overpayment() {
+        let [mock_ancient_tomb] = collection::get_sample_cards_static::<1>();
+
+        let mana_sources = vec![
+            ManaSource {
+                card: mock_ancient_tomb,
+                produces: vec![ManaPool::colorless(2)]
+            }
+        ];
+
+        let cost_to_pay = ManaCost::try_parse("{1}").expect("should parse");
+
+        let solution = autotap_pay_for(mana_sources, &cost_to_pay);
+
+        let expected_solution = PaymentSolution {
+            cards_to_tap: vec![
+                (mock_ancient_tomb, ManaPool::colorless(2))  // Overpaying, but necessary
+            ],
+            mana_used: ManaPool::colorless(2)
+        };
+
+        assert_eq!(solution, Some(expected_solution));
+        
+
+    }
+
+    #[test]
+    fn test_unable_to_pay() {
+
+        let [mock_forest] = collection::get_sample_cards_static::<1>();
+
+        let mana_sources = vec![
+            ManaSource {
+                card: mock_forest,
+                produces: vec![ManaPool::green(1)]
+            }
+        ];
+
+        let cost_to_pay = ManaCost::try_parse("{R}{G}").expect("should parse");
+
+        let solution = autotap_pay_for(mana_sources, &cost_to_pay);
+
+        assert_eq!(solution, None);
+
+    }
+
+    #[test]
+    fn test_single_dual_land() {
+        let [mock_forest, mock_taiga] = collection::get_sample_cards_static::<2>();
+
+        let mana_sources = vec![
+            ManaSource {
+                card: mock_forest,
+                produces: vec![ManaPool::green(1)]
+            },
+            ManaSource {
+                card: mock_taiga,
+                produces: vec![ManaPool::red(1), ManaPool::green(1)]
+            }
+        ];
+
+        let cost_to_pay = ManaCost::try_parse("{R}{G}").expect("should parse");
+
+        let solution = autotap_pay_for(mana_sources, &cost_to_pay);
+
+        let expected_solution = PaymentSolution {
+            cards_to_tap: vec![
+                (mock_forest, ManaPool::green(1)),
+                (mock_taiga, ManaPool::red(1))
+            ],
+            mana_used: ManaPool::try_parse("{R}{G}").expect("should parse")
+        };
+
+        assert_eq!(solution, Some(expected_solution));
+
+    }
+
+    #[test]
+    fn test_dual_land_unable_to_pay() {
+      let [mock_forest, mock_taiga] = collection::get_sample_cards_static::<2>();
+
+        let mana_sources = vec![
+            ManaSource {
+                card: mock_forest,
+                produces: vec![ManaPool::green(1)]
+            },
+            ManaSource {
+                card: mock_taiga,
+                produces: vec![ManaPool::red(1), ManaPool::green(1)]
+            }
+        ];
+
+        let cost_to_pay = ManaCost::try_parse("{U}{G}").expect("should parse");
+
+        let solution = autotap_pay_for(mana_sources, &cost_to_pay);
+
+        assert_eq!(solution, None);
+
+    }
+
+    #[test]
+    fn test_mana_source_with_no_produces() {
+        let [mock_forest, mock_taiga, mock_other] = collection::get_sample_cards_static::<3>();
+
+        let mana_sources = vec![
+            ManaSource {
+                card: mock_forest,
+                produces: vec![ManaPool::green(1)]
+            },
+            ManaSource {
+                card: mock_taiga,
+                produces: vec![ManaPool::red(1), ManaPool::green(1)]
+            },
+            ManaSource {
+                card: mock_other,
+                produces: vec![]
+            }
+        ];
+
+        let cost_to_pay = ManaCost::try_parse("{R}{G}").expect("should parse");
+
+        let solution = autotap_pay_for(mana_sources, &cost_to_pay);
+
+        let expected_solution = PaymentSolution {
+            cards_to_tap: vec![
+                (mock_forest, ManaPool::green(1)),
+                (mock_taiga, ManaPool::red(1))
+            ],
+            mana_used: ManaPool::try_parse("{R}{G}").expect("should parse")
+        };
+
+        assert_eq!(solution, Some(expected_solution));
+
+
+    }
+
 }
 
