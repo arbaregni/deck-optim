@@ -1,4 +1,5 @@
 /// The outcome of a single experiment
+#[allow(dead_code)]
 struct ExperimentResult {
     param: usize,
     measure: f32

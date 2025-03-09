@@ -6,7 +6,6 @@ use crate::game::card::CardType;
 use crate::game::card_play::CardPlay;
 use crate::game::state::State;
 use crate::game::unordered_pile::UnorderedPile;
-use crate::game::{ManaPool, Zone};
 use crate::trial::Rand;
 
 #[allow(unused)]
@@ -75,15 +74,6 @@ mod mulligan_strategies {
     }
 }
 
-mod land_drop_strategies {
-    use super::*;
-
-
-    pub fn random_land(rng: &mut Rand, state: &State) -> Option<Card> {
-        pick_random_filtered(rng, &state.hand, |c| c.data().card_type == CardType::Land)
-    }
-
-}
 #[allow(dead_code)]
 mod card_play_strategies {
     use crate::game::{
@@ -95,7 +85,8 @@ mod card_play_strategies {
 
     use super::*;
     
-    type Utility = u32;
+    use super::utility_functions::Utility;
+
     #[derive(Debug,Clone)]
     struct Soln {
         pub card_plays: Vec<CardPlay>,

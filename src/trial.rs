@@ -1,13 +1,10 @@
 use rand::SeedableRng;
 
 use crate::game::annotations::AnnotationValue;
-use crate::game::card_play::CardPlay;
 use crate::game::Deck;
 use crate::game::Library;
 use crate::game::Hand;
-use crate::game::Zone;
 use crate::game::state::State;
-use crate::game::mana::ManaPool;
 use crate::strategies::Strategy;
 use crate::watcher::Watcher;
 use crate::metrics::MetricsData;
