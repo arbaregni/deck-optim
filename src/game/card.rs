@@ -1,11 +1,8 @@
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::collection::Card;
 use crate::game::annotations::Annotation;
 use crate::game::mana::ManaCost;
-use crate::game::mana::ManaPool;
-use crate::strategies;
 
 use super::annotations::AnnotationValue;
 

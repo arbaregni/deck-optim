@@ -13,7 +13,6 @@ use crate::game::mana::ManaSource;
 use crate::game::state::State;
 use crate::trial::Rand;
 
-use super::payment_solver::PaymentSolution;
 
 #[derive(Debug,Clone)]
 struct Soln {

@@ -367,7 +367,7 @@ mod tests {
     fn test_overpayment() {
         let [mock_ancient_tomb] = collection::get_sample_cards_static::<1>();
 
-        let mut mana_sources = vec![
+        let mana_sources = vec![
             ManaSource {
                 card: mock_ancient_tomb,
                 produces: vec![ManaPool::colorless(2)]
