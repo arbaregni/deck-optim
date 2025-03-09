@@ -89,7 +89,7 @@ impl Trial {
         watcher.opening_hand(&self.state, &mut self.metrics);
 
         self.state.turn = 1;
-        while self.turn() <= self.props.max_turn && !self.state.game_loss {
+        while self.state.turn() <= self.props.max_turn && !self.state.game_loss {
             let draw = self.turn() > 1 || self.state.draw_on_first_turn;
             if draw {
                 self.state.draw_to_hand();
@@ -117,7 +117,8 @@ impl Trial {
             }
 
             watcher.turn_end(&self.state, &mut self.metrics);
-            self.state.turn += 1;
+
+            self.state.end_turn();
         }
 
         watcher.game_end(&self.state, &mut self.metrics);

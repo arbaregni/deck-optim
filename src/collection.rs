@@ -77,7 +77,6 @@ impl CardCollection {
                 let AnnotationTarget { targets, annotation } = an;
                 for card_name in targets {
                     let Some(card) = self.card_named(card_name.as_str()) else {
-                        log::debug!("annotation is targetting {card_name}, but it does not exist");
                         continue;
                     };
                     self.annotations.entry(card)

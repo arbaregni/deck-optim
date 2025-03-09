@@ -16,6 +16,7 @@ use crate::game::mana::ManaPool;
 const PROB_OF_GOING_FIRST: f64 = 0.5;
 const HAND_SIZE: u32 = 7;
 
+#[derive(Debug, Clone)]
 pub struct State {
     pub turn: u32,
     pub draw_on_first_turn: bool,
@@ -96,6 +97,12 @@ impl State {
         };
     }
 
+    pub fn forecasted(&self, card_play: CardPlay) -> Self {
+        let mut next = self.clone();
+        next.play_card(card_play);
+        next
+    }
+
     pub fn play_card(&mut self, card_play: CardPlay) {
          let CardPlay { card, zone, payment: _ } = card_play;
 
@@ -118,6 +125,10 @@ impl State {
         }
     }
 
+    pub fn turn(&self) -> u32 {
+        self.turn
+    }
+
     pub fn end_turn(&mut self) {
         self.turn_state.reset();
         self.turn += 1;
@@ -126,6 +137,7 @@ impl State {
 
     pub fn legal_card_plays(&self) -> impl Iterator<Item = CardPlay> + '_ {
         let hand = self.hand.iter()
+            .filter(|c| c.data().cost.is_some())
             .map(|card| CardPlay {
                 card, zone: Zone::Hand, payment: ManaPool::empty()
             });
@@ -136,6 +148,17 @@ impl State {
         
         // TODO: some enforcement here, before we go into the strategies
         hand.chain(commanders)
+    }
+
+    pub fn legal_land_drops(&self) -> impl Iterator<Item = CardPlay> + use<'_> {
+        let hand = self.hand
+            .iter()
+            .filter(|c| c.data().card_type == CardType::Land)
+            .unique_by(|c| c.name())
+            .map(|card| CardPlay {
+                card, zone: Zone::Hand, payment: ManaPool::empty()
+            });
+        hand
     }
     
     // some measures
@@ -163,6 +186,7 @@ impl State {
 }
 
 /// For state that is reset every cleanup phase
+#[derive(Debug,Clone)]
 pub struct TurnState {
     pub land_drops_made: u32,
     pub tapped: UnorderedPile,
