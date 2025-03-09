@@ -45,10 +45,6 @@ pub struct Cli {
     /// Supply this parameter to change the default level filters
     pub level_filter: Option<LevelFilter>,
 
-    #[arg(short='a', long)]
-    /// Supply this parameter to use a custom source for card annotations
-    pub annotations: Option<PathBuf>,
-
     #[arg(short='d', long)]
     pub deck_list: PathBuf,
 }
@@ -123,9 +119,26 @@ fn card_cache_path() -> Result<PathBuf> {
     Ok(card_cache)
 }
 
+const ANNOTATIONS_FILENAME: &'static str = "annotations.json";
+fn annotations_path() -> Result<PathBuf> {
+    let project_dirs = project_dirs()?;
+    let path = project_dirs.data_dir().join(ANNOTATIONS_FILENAME);
+    Ok(path)
+}
+
+fn load_annotations(_cli: &Cli) -> Result<CardAnnotations> {
+    let path = annotations_path()?;
+
+    log::info!("Loading annotations from project directory {}", path.display());
+    let annotations: CardAnnotations = file_utils::read_json_from_path(&path)?;
+
+    Ok(annotations)
+}
+
 fn load_card_data(scenario: Vec<&str>, cli: &Cli, card_cache: &mut LocalCardCache, scryfall_client: &mut ScryfallClient) -> Result<CardCollection> {
     let mut cards;
     if cli.refresh {
+        log::info!("Refresh was requested, loading all card data from: {scryfall_client:?}");
         cards = CardCollection::from_source(&scenario, scryfall_client)?;
     } else {
         cards = CardCollection::from_source(&scenario, &mut card_cache.chain(scryfall_client))?;
@@ -136,12 +149,14 @@ fn load_card_data(scenario: Vec<&str>, cli: &Cli, card_cache: &mut LocalCardCach
     log::info!("writing back to cache...");
     card_cache.save(cards.all_card_data());
 
-    if let Some(annotation_path) = cli.annotations.as_ref() {
-        log::info!("a filepath was supplied for annotations, searching at {}", annotation_path.display());
-        let card_annotations: CardAnnotations = file_utils::read_json_from_path(annotation_path)?;
-        log::info!("found {} annotations, applying them now", card_annotations.len());
-
-        cards.apply_annotations(card_annotations);
+    match load_annotations(cli) {
+        Ok(annotations) => {
+            log::info!("found {} annotations, applying them now", annotations.len());
+            cards.apply_annotations(annotations);
+        }
+        Err(e) => {
+            log::error!("could not load annotations due to {e}");
+        }
     }
 
     log::debug!("loaded cards: {cards:#?}");
