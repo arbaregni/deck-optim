@@ -7,6 +7,9 @@ pub use cost::*;
 mod r#type;
 pub use r#type::*;
 
+mod mana_source;
+pub use mana_source::*;
+
 #[macro_use]
 mod macros;
 

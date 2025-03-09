@@ -9,9 +9,11 @@ use crate::strategies::utility_functions::Utility;
 use crate::collection::Card;
 use crate::game::card::CardType;
 use crate::game::card_play::CardPlay;
-use crate::game::mana::ManaPool;
+use crate::game::mana::ManaSource;
 use crate::game::state::State;
 use crate::trial::Rand;
+
+use super::payment_solver::PaymentSolution;
 
 #[derive(Debug,Clone)]
 struct Soln {
@@ -42,7 +44,7 @@ pub fn play_a_land_and_a_card<F>(state: &State, utility_fn: &F) -> CardPlaySolut
         .for_each(|land_drop| {
                 
             let mut card_plays = vec![land_drop.clone()];
-            let next = state.forecasted(land_drop.clone());
+            let next = state.with_having_played(land_drop.clone());
 
             log::debug!("forecasting land drop - what if we played {:?}", land_drop.card);
             card_plays.extend(play_a_card(&next, utility_fn));
@@ -66,7 +68,7 @@ pub fn play_a_card<F>(state: &State, utility_fn: &F) -> CardPlaySolution
     where F: Fn(Card) -> Utility
 {
     let mut plays = Vec::new();
-    let available_mana = state.available_mana();
+    let available_mana = state.mana_sources().collect_vec();
     let legal_plays = state.legal_card_plays().collect_vec();
 
     naive_greedy(&mut plays, available_mana, legal_plays, utility_fn);
@@ -74,10 +76,10 @@ pub fn play_a_card<F>(state: &State, utility_fn: &F) -> CardPlaySolution
     plays
 }
 
-pub fn naive_greedy<F: Fn(Card) -> Utility>(plays: &mut Vec<CardPlay>, mut available_mana: ManaPool, mut legal_plays: Vec<CardPlay>, utility_fn: &F) {
-    log::debug!("begin naive greedy algorithm, available mana: {available_mana} and {} potential plays", legal_plays.len());
+pub fn naive_greedy<F: Fn(Card) -> Utility>(plays: &mut Vec<CardPlay>, mut mana_sources: Vec<ManaSource>, mut legal_plays: Vec<CardPlay>, utility_fn: &F) {
+    log::debug!("begin naive greedy algorithm, available mana: {mana_sources:?} and {} potential plays", legal_plays.len());
     loop {
-        log::debug!("   picking from {} candidate card plays, available mana: {available_mana}", legal_plays.len());
+        log::debug!("   picking from {} candidate card plays, available mana: {mana_sources:?}", legal_plays.len());
         // filter pick the best thing to play first
         legal_plays.sort_by_key(|card_play| utility_fn(card_play.card));
         // pick a card to play
@@ -90,25 +92,23 @@ pub fn naive_greedy<F: Fn(Card) -> Utility>(plays: &mut Vec<CardPlay>, mut avail
             log::debug!("       candidate doesn't have a cost, can't play");
             continue;
         };
-        let mut payment_options = payment_solver::payment_methods_for(&available_mana, &mana_cost);
-        let Some(payment) = payment_options.next() else {
-            log::debug!("       no ways to pay for {mana_cost} with {available_mana}, skipping");
+
+        // TODO: can we avoid this clone?
+        let Some((payment, unused_mana)) = payment_solver::autotap_pay_for(mana_sources.clone(), &mana_cost) else {
+            log::debug!("       no ways to pay for {mana_cost} with {mana_sources:?}, skipping");
             continue;
         };
-        let Some(remaining_mana) = available_mana - payment else {
-            log::warn!("       invalid payment option: can not take {payment} from {available_mana}, not enough mana to cast");
-            continue;
-        };
-        available_mana = remaining_mana;
-        log::debug!("       playing {candidate:?} with {payment}");
+        mana_sources = unused_mana;
+
+        log::debug!("       playing {candidate:?} with {payment:?}");
         plays.push(CardPlay {
             card: candidate, 
             zone,
-            payment
+            payment: payment.mana_used
         });
     }
 
-    log::debug!("ending naive greedy algorithm, available mana: {available_mana}, cards being played: {}", plays.len());
+    log::debug!("ending naive greedy algorithm, available mana: {mana_sources:?}, cards being played: {}", plays.len());
 }
 
 #[allow(dead_code)]

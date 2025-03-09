@@ -1,9 +1,11 @@
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::collection::Card;
 use crate::game::annotations::Annotation;
 use crate::game::mana::ManaCost;
 use crate::game::mana::ManaPool;
+use crate::strategies;
 
 use super::annotations::AnnotationValue;
 
@@ -47,29 +49,7 @@ impl Card {
         const EMPTY: &'static [AnnotationValue] = &[];
         self.annotations().get(GAME_EFFECT_TAG)
             .map(Annotation::values)
-            .unwrap_or(EMPTY)
+            .unwrap_or(EMPTY) 
     }
-
-    /// Get the mana produces by this card, as specified by the tag "core:Produces"
-    pub fn produces_mana(self) -> Option<&'static ManaPool> {
-        let tag = self.annotations()
-            .get(PRODUCES_MANA_TAG)?;
-
-        match tag.values() {
-            [] => None,
-            [AnnotationValue::Mana(mana)] => Some(mana),
-            [val] => {
-                log::warn!("tag with {PRODUCES_MANA_TAG} should have type Mana, instead found: {val:?}. This will be ignored");
-                None
-            }
-            [..] => {
-                log::warn!("tag with {PRODUCES_MANA_TAG} should have a single value, found {} instead. This will be ignored", tag.values().len());
-                None
-            }
-        }
-
-
-    }
-
 
 }

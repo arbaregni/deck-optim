@@ -41,7 +41,7 @@ impl Watcher for WatcherImpl {
     }
 
     fn turn_end(&self, state: &State, metrics: &mut MetricsData) {
-        let available_mana = state.available_mana().mana_value() as u32;
+        let available_mana = state.available_mana() as u32;
         metrics.set(
             MetricsKey::from("mana_on_turn").turn_num(state.turn),
             available_mana

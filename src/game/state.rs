@@ -12,10 +12,12 @@ use crate::game::Deck;
 use crate::game::Zone;
 use crate::game::card_play::CardPlay;
 use crate::game::mana::ManaPool;
+use crate::game::mana::ManaSource;
 
 const PROB_OF_GOING_FIRST: f64 = 0.5;
 const HAND_SIZE: u32 = 7;
 
+/// Represents the state of the game simulation at a given instant.
 #[derive(Debug, Clone)]
 pub struct State {
     pub turn: u32,
@@ -55,6 +57,11 @@ impl State {
             turn_state: TurnState::new(),
         }
     }
+
+    // ===================================================================
+    //  Game actions and methods to mutate the state
+    // ===================================================================
+
     /// Draw a hand, decreases as the number of mulligans taken.
     pub fn draw_hand(&mut self) {
         if self.num_mulligans_taken >= HAND_SIZE {
@@ -86,7 +93,7 @@ impl State {
         }
     }
 
-    /// Removes a card from
+    /// Removes a card from wherever.
     fn remove_from_zone(&mut self, card: Card, zone: Zone) {
         match zone {
             Zone::CommandZone => self.command_zone.remove(card),
@@ -97,12 +104,14 @@ impl State {
         };
     }
 
-    pub fn forecasted(&self, card_play: CardPlay) -> Self {
+    /// Create a copy of this state, where the card has been played.
+    pub fn with_having_played(&self, card_play: CardPlay) -> Self {
         let mut next = self.clone();
         next.play_card(card_play);
         next
     }
 
+    /// Move the card from wherever it came from to wherever it is going.
     pub fn play_card(&mut self, card_play: CardPlay) {
          let CardPlay { card, zone, payment: _ } = card_play;
 
@@ -125,13 +134,19 @@ impl State {
         }
     }
 
-    pub fn turn(&self) -> u32 {
-        self.turn
-    }
-
     pub fn end_turn(&mut self) {
         self.turn_state.reset();
         self.turn += 1;
+    }
+
+
+    // =====================================================================
+    //  Accessors, helpful for the trial which is running the simulation,
+    //    or for the strategies which need complicated views into the state
+    // =====================================================================
+
+    pub fn turn(&self) -> u32 {
+        self.turn
     }
 
 
@@ -160,16 +175,29 @@ impl State {
             });
         hand
     }
-    
-    // some measures
-    pub fn available_mana(&self) -> ManaPool {
+
+    pub fn mana_sources(&self) -> impl Iterator<Item = ManaSource> + use<'_> {
         self.permanents
             .iter()
-            .filter_map(|c| c.produces_mana())
-            .cloned()
+            .filter_map(ManaSource::try_from)
+    }
+    
+    // ===========================================
+    //   Some ways to measure the game state 
+    // ===========================================
+
+
+    /// How much mana does the player theoretically have access to?
+    /// Note: this should **not** be used for making game decisions, it's merely a heuristic.
+    pub fn available_mana(&self) -> u8 {
+        self.permanents
+            .iter()
+            .filter_map(ManaSource::try_from)
+            .map(|mana_source| mana_source.highest_mana_value())
             .sum()
     }
 
+    /// How many lands does the player have in hand?
     pub fn num_lands_in_hand(&self) -> usize {
         self.hand
             .iter()
@@ -177,6 +205,7 @@ impl State {
             .count()
     }
 
+    /// How many lands does the player have in play?
     pub fn num_lands_in_play(&self) -> usize {
         self.permanents
             .iter()
