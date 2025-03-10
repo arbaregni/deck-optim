@@ -34,7 +34,7 @@ impl Watcher for WatcherImpl {
             state.turn
         );
 
-        if metrics.get("card-plays") == 7 {
+        if metrics.total("card-plays") == 7 {
             metrics.add_count("turn-to-reach-7-plays", state.turn);
         }
 

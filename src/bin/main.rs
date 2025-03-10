@@ -81,11 +81,10 @@ fn make_table() -> Table {
 fn report_metrics_data(_cli: &Cli, metrics: &MetricsData) -> Result<()> {
     let mut table = make_table();
 
-    table.set_titles(row!["Metrics Name", "Average"]);
+    table.set_titles(row!["Metrics Name", "Average", "Min", "Max"]);
     for key in metrics.keys().sorted() {
 
-        let avg = metrics.average(key);
-        table.add_row(row![key, avg]);
+        table.add_row(row![key, metrics.average(key), metrics.min(key), metrics.max(key)]);
 
     }
 
